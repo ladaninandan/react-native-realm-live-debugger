@@ -58,17 +58,27 @@ The server will start on `http://localhost:3000`. Keep this window running in th
 To integrate the debugger with any React Native application using Realm, please follow the detailed steps in the [Integration Guide](./INTEGRATION.md).
 
 ### Quick Setup:
-1. Copy `realmDebuggerClient.ts` into your React Native project (e.g., to `src/realm/realmDebuggerClient.ts`).
-2. Initialize the debugger in your file where Realm is opened:
+1. Install the package in your React Native project:
+```bash
+npm install react-native-realm-live-debugger --legacy-peer-deps
+```
 
+2. Initialize the debugger inside your React component where the database is opened:
 ```typescript
-import { initRealmDebugger } from './realmDebuggerClient';
+import React, { useEffect } from 'react';
+import { useRealm } from '@realm/react';
+import { initRealmDebugger } from 'react-native-realm-live-debugger';
 
-// Once realm is opened:
-const realm = await Realm.open(config);
+// Inside your component:
+const realm = useRealm();
 
-// Start the live inspector
-initRealmDebugger(realm, 'ws://localhost:3000');
+useEffect(() => {
+  if (__DEV__ && realm) {
+    // Initialize the live debugger directly from the package
+    const cleanUp = initRealmDebugger(realm, null, () => {});
+    return () => cleanUp();
+  }
+}, [realm]);
 ```
 
 > [!NOTE]

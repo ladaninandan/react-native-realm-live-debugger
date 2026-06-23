@@ -1,6 +1,6 @@
 {
   "name": "react-native-realm-live-debugger",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Live Read-Only Realm Inspector & Debugger for React Native",
   "main": "client/realmDebuggerClient.ts",
   "bin": {
