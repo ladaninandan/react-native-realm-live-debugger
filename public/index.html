@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Realm Live Debugger</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            slate: {
+              50: 'rgb(var(--slate-50) / <alpha-value>)',
+              100: 'rgb(var(--slate-100) / <alpha-value>)',
+              200: 'rgb(var(--slate-200) / <alpha-value>)',
+              300: 'rgb(var(--slate-300) / <alpha-value>)',
+              350: 'rgb(var(--slate-350) / <alpha-value>)',
+              400: 'rgb(var(--slate-400) / <alpha-value>)',
+              450: 'rgb(var(--slate-450) / <alpha-value>)',
+              500: 'rgb(var(--slate-500) / <alpha-value>)',
+              600: 'rgb(var(--slate-600) / <alpha-value>)',
+              700: 'rgb(var(--slate-700) / <alpha-value>)',
+              750: 'rgb(var(--slate-750) / <alpha-value>)',
+              800: 'rgb(var(--slate-800) / <alpha-value>)',
+              850: 'rgb(var(--slate-850) / <alpha-value>)',
+              900: 'rgb(var(--slate-900) / <alpha-value>)',
+              950: 'rgb(var(--slate-950) / <alpha-value>)'
+            },
+            indigo: {
+              400: 'rgb(var(--indigo-400) / <alpha-value>)',
+              500: 'rgb(var(--indigo-500) / <alpha-value>)',
+              600: 'rgb(var(--indigo-600) / <alpha-value>)',
+              700: 'rgb(var(--indigo-700) / <alpha-value>)'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Feather Icons -->
+  <script src="https://unpkg.com/feather-icons"></script>
+  <!-- Custom Stylesheet -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="bg-slate-950 text-slate-100 h-screen flex flex-col font-sans overflow-hidden">
+  <!-- Theme Init Script (Prevent Flicker) -->
+  <script>
+    (function() {
+      const savedTheme = localStorage.getItem('theme');
+      if (savedTheme === 'light') {
+        document.body.classList.add('light-theme');
+      }
+    })();
+  </script>
+
+  <!-- Header / Top Bar -->
+  <header class="bg-slate-900 border-b border-slate-800 px-4 py-3 md:px-6 md:py-4 flex flex-col md:flex-row md:items-center justify-between gap-3 z-10 shrink-0">
+    <div class="flex items-center justify-between w-full md:w-auto">
+      <div class="flex items-center gap-3">
+        <!-- Sidebar Toggle Button (Mobile) -->
+        <button 
+          id="sidebarToggleButton"
+          onclick="toggleSidebar()"
+          class="lg:hidden p-1.5 text-slate-400 hover:text-slate-100 hover:bg-slate-800 rounded-lg transition cursor-pointer"
+        >
+          <i data-feather="menu" class="w-5 h-5"></i>
+        </button>
+        <div class="p-1.5 md:p-2 bg-indigo-600/20 rounded-lg text-indigo-400">
+          <i data-feather="database" class="w-5 h-5 md:w-6 md:h-6"></i>
+        </div>
+        <div>
+          <h1 class="text-sm md:text-lg font-bold tracking-tight text-slate-100 flex items-center gap-2">
+            Realm Live Debugger
+            <span class="text-[10px] md:text-xs font-normal text-slate-400 px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700">Read-Only</span>
+          </h1>
+          <p class="hidden sm:block text-[10px] md:text-xs text-slate-400">Real-time React Native Database Inspector</p>
+        </div>
+      </div>
+      
+      <!-- Connection Status dot for very small mobile screens -->
+      <div class="flex md:hidden items-center gap-2">
+        <div id="statusIndicatorMobile" class="w-2.5 h-2.5 rounded-full bg-yellow-500 glowing-yellow animate-pulse"></div>
+      </div>
+    </div>
+
+    <!-- Status and Actions (desktop layout or wrapped on mobile) -->
+    <div class="flex flex-wrap items-center justify-between sm:justify-start gap-3 sm:gap-4 md:gap-6 w-full md:w-auto border-t border-slate-800/65 pt-2.5 md:pt-0 md:border-t-0">
+      <!-- Connection Status (hidden on tiny screens, shown on sm) -->
+      <div class="hidden sm:flex items-center gap-2">
+        <div id="statusIndicator" class="w-3.5 h-3.5 rounded-full bg-yellow-500 glowing-yellow animate-pulse"></div>
+        <span id="statusText" class="text-xs md:text-sm font-medium text-slate-350">Connecting to Inspector...</span>
+      </div>
+
+      <!-- Record Count -->
+      <div class="hidden sm:block h-5 w-px bg-slate-800"></div>
+      <div class="flex items-center gap-2">
+        <span class="text-[10px] md:text-xs text-slate-450">Record Count:</span>
+        <span id="topRecordCount" class="text-xs md:text-sm font-bold text-slate-100 bg-slate-800 px-2 py-0.5 rounded-full border border-slate-700">0</span>
+      </div>
+
+      <!-- Theme Toggle Button -->
+      <div class="h-5 w-px bg-slate-800"></div>
+      <button 
+        id="themeToggleButton"
+        onclick="toggleTheme()"
+        class="p-2 text-slate-400 hover:text-slate-100 bg-slate-800 hover:bg-slate-700/85 rounded-lg border border-slate-700 transition flex items-center justify-center cursor-pointer"
+        title="Toggle Dark/Light Mode"
+      >
+        <i id="themeToggleIcon" data-feather="sun" class="w-3.5 h-3.5"></i>
+      </button>
+
+      <!-- Refresh Action -->
+      <div class="h-5 w-px bg-slate-800"></div>
+      <button 
+        id="refreshButton"
+        class="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white text-[11px] md:text-xs font-semibold px-2.5 py-1.5 md:px-3.5 md:py-2 rounded-lg transition-all shadow-md shadow-indigo-600/10 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        <i data-feather="refresh-cw" class="w-3.5 h-3.5"></i>
+        <span>Sync App</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <div class="flex-1 flex min-h-0 overflow-hidden">
+    
+    <!-- Left Sidebar Backdrop for Mobile overlay -->
+    <div id="sidebarBackdrop" class="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-35 hidden lg:hidden" onclick="toggleSidebar()"></div>
+
+    <!-- Left Sidebar (Realm Files & Schemas) -->
+    <aside id="sidebar" class="w-80 bg-slate-900 border-r border-slate-800 flex flex-col fixed lg:static inset-y-0 left-0 z-40 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out">
+      <!-- Section 1: Realm Files -->
+      <div class="p-4 border-b border-slate-800 flex flex-col gap-2">
+        <h2 class="text-xs font-semibold tracking-wider text-slate-400 uppercase flex items-center gap-1.5">
+          <i data-feather="folder" class="w-3.5 h-3.5"></i>
+          Realm Files
+        </h2>
+        <div id="realmFilesList" class="flex flex-col gap-1.5 mt-2 max-h-40 overflow-y-auto">
+          <div class="text-xs text-slate-500 italic p-3 text-center bg-slate-900/30 rounded border border-slate-800">
+            No Realm files detected
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 2: Schemas -->
+      <div class="flex-1 p-4 flex flex-col min-h-0">
+        <div class="flex items-center justify-between mb-2">
+          <h2 class="text-xs font-semibold tracking-wider text-slate-400 uppercase flex items-center gap-1.5">
+            <i data-feather="list" class="w-3.5 h-3.5"></i>
+            Schemas
+          </h2>
+        </div>
+        <!-- Schema Search Bar -->
+        <div class="relative mb-2">
+          <span class="absolute inset-y-0 left-0 flex items-center pl-2 text-slate-500 pointer-events-none">
+            <i data-feather="search" class="w-3 h-3"></i>
+          </span>
+          <input 
+            type="text" 
+            id="schemaSearchInput" 
+            placeholder="Filter schemas..." 
+            class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 pl-7 text-xs text-slate-200 placeholder-slate-650 focus:outline-none focus:border-indigo-500 transition-colors"
+          />
+        </div>
+        <div id="schemasList" class="flex-1 flex flex-col gap-1 overflow-y-auto min-h-0 pr-1">
+          <div class="text-xs text-slate-500 italic p-3 text-center bg-slate-900/30 rounded border border-slate-800">
+            Select a Realm file to view schemas
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 flex flex-col min-h-0 bg-slate-950 overflow-hidden">
+      <!-- Tab Selection Bar -->
+      <div class="bg-slate-900 border-b border-slate-800 flex items-center justify-between px-6 z-10">
+        <div class="flex gap-1">
+          <button 
+            id="tab-databases"
+            onclick="switchTab('databases')"
+            class="px-5 py-3.5 text-sm font-semibold border-b-2 transition flex items-center gap-2 cursor-pointer border-indigo-500 text-slate-100"
+          >
+            <i data-feather="table" class="w-4 h-4"></i>
+            Databases
+          </button>
+          <button 
+            id="tab-logs"
+            onclick="switchTab('logs')"
+            class="px-5 py-3.5 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition flex items-center gap-2 cursor-pointer"
+          >
+            <i data-feather="terminal" class="w-4 h-4"></i>
+            Live Console Logs
+          </button>
+          <button 
+            id="tab-schema"
+            onclick="switchTab('schema')"
+            class="px-5 py-3.5 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition flex items-center gap-2 cursor-pointer"
+          >
+            <i data-feather="code" class="w-4 h-4"></i>
+            Raw Database Schema
+          </button>
+        </div>
+
+        <div id="navBreadcrumb" class="hidden lg:flex items-center gap-2 text-xs text-slate-400">
+          <i data-feather="terminal" class="w-3.5 h-3.5 text-slate-500"></i>
+          Active Path: <span id="navSelectedPath" class="text-indigo-400 font-mono">-</span>
+        </div>
+      </div>
+
+      <!-- Tab Content 1: Databases -->
+      <div id="content-databases" class="flex-1 flex flex-col min-h-0 bg-slate-950">
+        <!-- Filters, Search & Table Operations -->
+        <div class="p-3 md:p-4 border-b border-slate-800 bg-slate-900/20 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
+          <div class="flex flex-wrap items-center gap-2 md:gap-3">
+            <!-- Search bar -->
+            <div class="relative w-full sm:w-60 md:w-64">
+              <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500 pointer-events-none">
+                <i data-feather="search" class="w-4 h-4"></i>
+              </span>
+              <input 
+                type="text" 
+                id="searchInput" 
+                placeholder="Search columns..." 
+                class="w-full bg-slate-900/80 border border-slate-800 rounded-lg px-3 py-2 pl-9 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+              />
+            </div>
+            <!-- Column Operations -->
+            <button 
+              id="addColumnButton"
+              class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold px-3 py-2 rounded-lg border border-slate-700 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled
+            >
+              <i data-feather="columns" class="w-3.5 h-3.5"></i>
+              Add Column
+            </button>
+          </div>
+
+          <div class="flex items-center gap-3 md:gap-4 justify-between sm:justify-end">
+            <button 
+              id="addRecordButton"
+              class="bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white text-xs font-semibold px-3 py-2 md:px-3.5 md:py-2 rounded-lg transition-all shadow-md shadow-indigo-600/10 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled
+            >
+              <i data-feather="plus" class="w-4 h-4"></i>
+              Add Record
+            </button>
+            <div class="text-xs text-slate-400">
+              Last Sync: <span id="lastUpdatedTime" class="text-slate-250 font-mono">-</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dynamic Grid (Table & JSON details) -->
+        <div class="flex-grow flex flex-col lg:flex-row min-h-0 overflow-hidden">
+          <!-- Records Table Section -->
+          <section class="flex-1 flex flex-col overflow-hidden min-w-0">
+            <div class="flex-grow overflow-auto pr-1" style="height: 0;">
+              <table class="w-full text-left border-collapse">
+                <thead class="sticky top-0 bg-slate-900 border-b border-slate-800 text-xs font-semibold uppercase tracking-wider text-slate-400 z-10">
+                  <tr id="tableHeaders">
+                    <th class="p-4">No Table Selected</th>
+                  </tr>
+                </thead>
+                <tbody id="tableBody" class="divide-y divide-slate-800/50 text-sm text-slate-300">
+                  <tr>
+                    <td class="p-8 text-center text-slate-500 italic">
+                      Select a schema from the sidebar to inspect records
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- Resizer divider (hidden on mobile, resizes sidebar on desktop) -->
+          <div 
+            id="jsonInspectorResizer" 
+            class="hidden lg:block w-1.5 hover:w-2 bg-slate-800/85 hover:bg-indigo-600 cursor-col-resize select-none transition-all z-20 shrink-0"
+            title="Drag to resize JSON Inspector"
+          ></div>
+
+          <!-- JSON Inspector Drawer (Side panel on desktop, bottom panel on mobile) -->
+          <section id="jsonInspectorSidebar" class="w-full lg:w-96 h-60 lg:h-auto border-t lg:border-t-0 lg:border-l border-slate-800 bg-slate-900/30 flex flex-col overflow-hidden shrink-0">
+            <div class="p-4 border-b border-slate-800 bg-slate-900/60 flex items-center justify-between">
+              <h3 class="text-xs font-semibold tracking-wider text-slate-400 uppercase flex items-center gap-1.5">
+                <i data-feather="code" class="w-3.5 h-3.5"></i>
+                JSON Inspector
+              </h3>
+              <div class="flex items-center gap-1.5">
+                <button 
+                  id="editRecordButton"
+                  class="text-xs text-slate-400 hover:text-white px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 transition flex items-center gap-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled
+                >
+                  <i data-feather="edit-2" class="w-3 h-3"></i>
+                  Edit
+                </button>
+                <button 
+                  id="copyJsonButton"
+                  class="text-xs text-slate-400 hover:text-white px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 transition flex items-center gap-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled
+                >
+                  <i data-feather="copy" class="w-3 h-3"></i>
+                  Copy
+                </button>
+              </div>
+            </div>
+            <div class="flex-grow overflow-y-auto p-4 font-mono text-xs leading-relaxed text-indigo-400 bg-slate-950/80" style="height: 0;">
+              <pre id="jsonViewer" class="whitespace-pre-wrap select-text">Select a row to inspect its full JSON content.</pre>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <!-- Tab Content 2: Live Change Logs Console -->
+      <div id="content-logs" class="hidden flex-1 flex flex-col min-h-0 bg-slate-950">
+        <div class="p-4 border-b border-slate-800 bg-slate-900/20 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+              <i data-feather="terminal" class="w-4 h-4 text-indigo-400"></i>
+              System Operations Stream
+            </span>
+          </div>
+          <button 
+            class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-3 py-1.5 rounded-lg border border-slate-700 transition cursor-pointer"
+            onclick="clearChangeLogs()"
+          >
+            Clear Console
+          </button>
+        </div>
+        <div id="changeLogConsole" class="flex-grow overflow-y-auto p-5 font-mono text-xs space-y-2 bg-slate-950 pr-1" style="height: 0;">
+          <div class="text-slate-500 italic">Listening for live insert, update, and delete events...</div>
+        </div>
+      </div>
+
+      <!-- Tab Content 3: Raw Schema JSON View -->
+      <div id="content-schema" class="hidden flex-1 flex flex-col min-h-0 bg-slate-950">
+        <div class="p-4 border-b border-slate-800 bg-slate-900/20 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+              <i data-feather="code" class="w-4 h-4 text-indigo-400"></i>
+              Schema Metadata Definition
+            </span>
+          </div>
+          <button 
+            id="copySchemaJsonButton"
+            class="text-xs bg-slate-850 border border-slate-750 hover:bg-slate-800 text-slate-200 font-semibold px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled
+          >
+            <i data-feather="copy" class="w-3.5 h-3.5"></i>
+            Copy Schema JSON
+          </button>
+        </div>
+        <div class="flex-grow overflow-y-auto p-5 font-mono text-xs bg-slate-950 pr-1" style="height: 0;">
+          <pre id="schemaJsonViewer" class="whitespace-pre-wrap select-text">Select a schema from the sidebar to view its raw database JSON.</pre>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Add Column Modal -->
+  <div id="addColumnModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-xl w-full max-w-md flex flex-col max-h-[85vh] shadow-2xl">
+      <!-- Modal Header -->
+      <div class="p-5 border-b border-slate-800 flex items-center justify-between">
+        <h3 class="text-sm font-bold text-slate-100 flex items-center gap-2">
+          <i data-feather="columns" class="w-4 h-4 text-indigo-400"></i>
+          Add New Column
+        </h3>
+        <button onclick="closeAddColumnModal()" class="text-slate-400 hover:text-slate-100 transition cursor-pointer">
+          <i data-feather="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <!-- Modal Error Alert (Hidden by default) -->
+      <div id="columnModalErrorAlert" class="mx-6 mt-4 p-3 bg-rose-950/40 border border-rose-800/60 rounded-lg hidden">
+        <div class="flex items-start gap-2">
+          <i data-feather="alert-circle" class="w-4 h-4 text-rose-400 shrink-0 mt-0.5"></i>
+          <span id="columnModalErrorText" class="text-xs text-rose-200 font-medium leading-relaxed"></span>
+        </div>
+      </div>
+      <!-- Modal Body (Form) -->
+      <div class="flex-grow overflow-y-auto p-6 space-y-4">
+        <!-- Schema name (Read-only) -->
+        <div class="flex flex-col gap-1.5">
+          <label class="text-xs font-semibold text-slate-350">Target Schema</label>
+          <input 
+            type="text" 
+            id="addColumnTargetSchema" 
+            class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-500 placeholder-slate-650 focus:outline-none" 
+            readonly 
+            disabled
+          />
+        </div>
+        <!-- Column Name -->
+        <div class="flex flex-col gap-1.5">
+          <label class="text-xs font-semibold text-slate-300">Column Name</label>
+          <input 
+            type="text" 
+            id="addColumnName" 
+            placeholder="e.g. category"
+            class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition" 
+          />
+        </div>
+        <!-- Column Type -->
+        <div class="flex flex-col gap-1.5">
+          <label class="text-xs font-semibold text-slate-300">Data Type</label>
+          <select 
+            id="addColumnType" 
+            class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition"
+          >
+            <option value="string">string</option>
+            <option value="int">int (integer)</option>
+            <option value="float">float</option>
+            <option value="double">double</option>
+            <option value="bool">bool (boolean)</option>
+            <option value="date">date</option>
+            <option value="objectId">objectId</option>
+            <option value="string[]">string[] (list of strings)</option>
+          </select>
+        </div>
+        <!-- Optional Checkbox -->
+        <div class="flex items-center gap-2 pt-2">
+          <input 
+            type="checkbox" 
+            id="addColumnOptional" 
+            class="rounded border-slate-800 text-indigo-600 focus:ring-indigo-500 bg-slate-950 w-4 h-4 cursor-pointer"
+          />
+          <label for="addColumnOptional" class="text-xs font-semibold text-slate-300 cursor-pointer select-none">
+            Is Optional (Nullable)
+          </label>
+        </div>
+      </div>
+      <!-- Modal Footer -->
+      <div class="p-5 border-t border-slate-800 bg-slate-900/60 flex items-center justify-end gap-3">
+        <button 
+          id="cancelAddColumnBtn"
+          onclick="closeAddColumnModal()" 
+          class="px-4 py-2 bg-slate-850 hover:bg-slate-800 text-slate-350 rounded-lg text-xs font-semibold border border-slate-750 transition cursor-pointer"
+        >
+          Cancel
+        </button>
+        <button 
+          id="saveAddColumnBtn"
+          onclick="submitAddColumn()" 
+          class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white rounded-lg text-xs font-semibold transition cursor-pointer"
+        >
+          Create Column
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Record Modal -->
+  <div id="addRecordModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-xl w-full max-w-md flex flex-col max-h-[85vh] shadow-2xl">
+      <!-- Modal Header -->
+      <div class="p-5 border-b border-slate-800 flex items-center justify-between">
+        <h3 class="text-sm font-bold text-slate-100 flex items-center gap-2">
+          <i data-feather="plus-circle" class="w-4 h-4 text-indigo-400"></i>
+          Add New Record
+        </h3>
+        <button onclick="closeAddRecordModal()" class="text-slate-400 hover:text-slate-100 transition cursor-pointer">
+          <i data-feather="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <!-- Modal Error Alert (Hidden by default) -->
+      <div id="modalErrorAlert" class="mx-6 mt-4 p-3 bg-rose-950/40 border border-rose-800/60 rounded-lg hidden">
+        <div class="flex items-start gap-2">
+          <i data-feather="alert-circle" class="w-4 h-4 text-rose-400 shrink-0 mt-0.5"></i>
+          <span id="modalErrorText" class="text-xs text-rose-200 font-medium leading-relaxed"></span>
+        </div>
+      </div>
+      <!-- Modal Body (Dynamic Form) -->
+      <div class="flex-grow overflow-y-auto p-6 space-y-4" id="addRecordFormFields">
+        <!-- Fields injected here -->
+      </div>
+      <!-- Modal Footer -->
+      <div class="p-5 border-t border-slate-800 bg-slate-900/60 flex items-center justify-end gap-3">
+        <button 
+          id="cancelRecordBtn"
+          onclick="closeAddRecordModal()" 
+          class="px-4 py-2 bg-slate-850 hover:bg-slate-800 text-slate-350 rounded-lg text-xs font-semibold border border-slate-750 transition cursor-pointer"
+        >
+          Cancel
+        </button>
+        <button 
+          id="saveRecordBtn"
+          onclick="submitAddRecord()" 
+          class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white rounded-lg text-xs font-semibold transition cursor-pointer"
+        >
+          Save Record
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Record Modal -->
+  <div id="editRecordModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-xl w-full max-w-md flex flex-col max-h-[85vh] shadow-2xl">
+      <!-- Modal Header -->
+      <div class="p-5 border-b border-slate-800 flex items-center justify-between">
+        <h3 class="text-sm font-bold text-slate-100 flex items-center gap-2">
+          <i data-feather="edit-3" class="w-4 h-4 text-indigo-400"></i>
+          Edit Record
+        </h3>
+        <button onclick="closeEditRecordModal()" class="text-slate-400 hover:text-slate-100 transition cursor-pointer">
+          <i data-feather="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <!-- Modal Error Alert (Hidden by default) -->
+      <div id="editModalErrorAlert" class="mx-6 mt-4 p-3 bg-rose-950/40 border border-rose-800/60 rounded-lg hidden">
+        <div class="flex items-start gap-2">
+          <i data-feather="alert-circle" class="w-4 h-4 text-rose-400 shrink-0 mt-0.5"></i>
+          <span id="editModalErrorText" class="text-xs text-rose-200 font-medium leading-relaxed"></span>
+        </div>
+      </div>
+      <!-- Modal Body (Dynamic Form) -->
+      <div class="flex-grow overflow-y-auto p-6 space-y-4" id="editRecordFormFields">
+        <!-- Fields injected here -->
+      </div>
+      <!-- Modal Footer -->
+      <div class="p-5 border-t border-slate-800 bg-slate-900/60 flex items-center justify-end gap-3">
+        <button 
+          id="cancelEditRecordBtn"
+          onclick="closeEditRecordModal()" 
+          class="px-4 py-2 bg-slate-850 hover:bg-slate-800 text-slate-350 rounded-lg text-xs font-semibold border border-slate-750 transition cursor-pointer"
+        >
+          Cancel
+        </button>
+        <button 
+          id="saveEditRecordBtn"
+          onclick="submitEditRecord()" 
+          class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white rounded-lg text-xs font-semibold transition cursor-pointer"
+        >
+          Save Changes
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toastContainer" class="fixed bottom-5 right-5 z-[100] flex flex-col gap-3 pointer-events-none"></div>
+
+  <!-- Sidebar Toggle Script & Theme toggle script -->
+  <script>
+    window.toggleSidebar = () => {
+      const sidebar = document.getElementById('sidebar');
+      const backdrop = document.getElementById('sidebarBackdrop');
+      if (sidebar && backdrop) {
+        const isOpen = sidebar.classList.contains('translate-x-0');
+        if (isOpen) {
+          sidebar.classList.remove('translate-x-0');
+          sidebar.classList.add('-translate-x-full');
+          backdrop.classList.add('hidden');
+        } else {
+          sidebar.classList.remove('-translate-x-full');
+          sidebar.classList.add('translate-x-0');
+          backdrop.classList.remove('hidden');
+        }
+      }
+    };
+
+    window.toggleTheme = () => {
+      const body = document.body;
+      const themeIcon = document.getElementById('themeToggleIcon');
+      
+      const isLight = body.classList.toggle('light-theme');
+      localStorage.setItem('theme', isLight ? 'light' : 'dark');
+      
+      if (themeIcon) {
+        themeIcon.setAttribute('data-feather', isLight ? 'moon' : 'sun');
+        if (window.feather) {
+          window.feather.replace();
+        }
+      }
+    };
+
+    // Set initial theme button icon once Feather is loaded
+    document.addEventListener('DOMContentLoaded', () => {
+      const isLight = document.body.classList.contains('light-theme');
+      const themeIcon = document.getElementById('themeToggleIcon');
+      if (themeIcon) {
+        themeIcon.setAttribute('data-feather', isLight ? 'moon' : 'sun');
+        if (window.feather) {
+          window.feather.replace();
+        }
+      }
+    });
+  </script>
+
+  <!-- Modular App Entry -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

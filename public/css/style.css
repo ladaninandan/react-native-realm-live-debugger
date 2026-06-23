@@ -1,0 +1,117 @@
+:root {
+  --slate-50: 248 250 252;      /* #f8fafc */
+  --slate-100: 241 245 249;     /* #f1f5f9 */
+  --slate-200: 226 232 240;     /* #e2e8f0 */
+  --slate-300: 203 213 225;     /* #cbd5e1 */
+  --slate-350: 148 163 184;     /* #94a3b8 */
+  --slate-400: 148 163 184;     /* #94a3b8 */
+  --slate-450: 100 116 139;     /* #64748b */
+  --slate-500: 100 116 139;     /* #64748b */
+  --slate-600: 71 85 105;       /* #475569 */
+  --slate-700: 51 65 85;        /* #334155 */
+  --slate-750: 38 50 68;        /* custom border */
+  --slate-800: 30 41 59;        /* #1e293b */
+  --slate-850: 23 33 48;        /* custom bg */
+  --slate-900: 15 23 42;        /* #0f172a */
+  --slate-950: 2 6 23;          /* #020617 */
+
+  --indigo-400: 129 140 248;     /* #818cf8 */
+  --indigo-500: 99 102 241;     /* #6366f1 */
+  --indigo-600: 79 70 229;      /* #4f46e5 */
+  --indigo-700: 67 56 202;      /* #4338ca */
+}
+
+body.light-theme {
+  /* Premium Light Slate Palette */
+  --slate-50: 15 23 42;         /* Slate 900 - main headings/titles (very dark slate) */
+  --slate-100: 30 41 59;        /* Slate 800 - secondary headings / active states */
+  --slate-200: 51 65 85;        /* Slate 700 - primary body text / table cell text */
+  --slate-300: 71 85 105;       /* Slate 600 - secondary text */
+  --slate-350: 100 116 139;     /* Slate 500 - descriptions */
+  --slate-400: 100 116 139;     /* Slate 500 - descriptions / labels */
+  --slate-450: 148 163 184;     /* Slate 400 - light labels */
+  --slate-500: 148 163 184;     /* Slate 400 - light labels */
+  --slate-600: 203 213 225;     /* Slate 300 - borders (clean and soft) */
+  --slate-700: 226 232 240;     /* Slate 200 - soft borders */
+  --slate-750: 235 241 247;     /* Slate 100 - very soft borders / separators */
+  --slate-800: 241 245 249;     /* Slate 100 - card backgrounds / input backgrounds */
+  --slate-850: 248 250 252;     /* Slate 50 - active item highlight backgrounds / table rows hover */
+  --slate-900: 244 246 248;     /* Custom Slate - header / sidebar background (soft off-white cool gray) */
+  --slate-950: 255 255 255;     /* Pure White - main workspace background */
+
+  /* Royal Indigo Palette for Light Mode (clean, high-contrast, premium) */
+  --indigo-400: 67 56 202;      /* Indigo 700 - high contrast active text */
+  --indigo-500: 79 70 229;      /* Indigo 600 - accents */
+  --indigo-600: 79 70 229;      /* Indigo 600 - primary button fills */
+  --indigo-700: 55 48 163;      /* Indigo 800 - active button states */
+}
+
+/* Theme-adaptive Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgb(var(--slate-900));
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--slate-700));
+  border-radius: 4px;
+  border: 1px solid rgb(var(--slate-800));
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--slate-600));
+}
+
+/* Glowing connection status indicators */
+.glowing-green {
+  box-shadow: 0 0 12px rgba(34, 197, 94, 0.65);
+}
+
+.glowing-red {
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.65);
+}
+
+.glowing-yellow {
+  box-shadow: 0 0 12px rgba(234, 179, 8, 0.65);
+}
+
+/* Smooth fade-in transitions */
+.fade-in {
+  animation: fadeIn 0.25s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Glassmorphism sidebar elements */
+.glass-item {
+  background: rgba(30, 41, 59, 0.3);
+  backdrop-filter: blur(8px);
+}
+
+body.light-theme .glass-item {
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 20px -2px rgba(148, 163, 184, 0.12);
+}
+
+/* Hide scrollbar utility for tab selector */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
