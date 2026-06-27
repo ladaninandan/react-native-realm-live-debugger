@@ -470,7 +470,6 @@ export function initRealmDebugger(
 
             // Update references
             realm = newRealm;
-            setRealmInstance(newRealm);
 
             // Re-setup change listeners
             registerListeners();
