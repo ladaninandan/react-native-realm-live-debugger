@@ -9,7 +9,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
 
     steps:
@@ -27,8 +27,20 @@ jobs:
         with:
           gradle-version: 8.2
 
+      - name: Build Android AAR
+        run: gradle assembleRelease
+        working-directory: client/android
+
       - name: Publish to GitHub Packages
         run: gradle publish
         working-directory: client/android
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: client/android/build/outputs/aar/*.aar
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
