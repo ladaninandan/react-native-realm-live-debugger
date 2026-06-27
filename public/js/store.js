@@ -10,12 +10,12 @@ class Store {
       selectedSchema: null,
       activeRecord: null,
       logs: [],
-      status: 'offline', // 'offline' | 'connecting' | 'online'
-      statusText: 'Connecting to Inspector...',
+      status: "offline", // 'offline' | 'connecting' | 'online'
+      statusText: "Connecting to Inspector...",
       topRecordCount: 0,
-      lastUpdatedTime: '-',
-      schemaSearchQuery: '',
-      tableSearchQuery: ''
+      lastUpdatedTime: "-",
+      schemaSearchQuery: "",
+      tableSearchQuery: "",
     };
 
     this.subscribers = new Set();
@@ -46,12 +46,21 @@ class Store {
   // Shallow comparison helper to detect object updates
   shallowEqual(a, b) {
     if (Object.is(a, b)) return true;
-    if (typeof a !== 'object' || a === null || typeof b !== 'object' || b === null) return false;
+    if (
+      typeof a !== "object" ||
+      a === null ||
+      typeof b !== "object" ||
+      b === null
+    )
+      return false;
     const keysA = Object.keys(a);
     const keysB = Object.keys(b);
     if (keysA.length !== keysB.length) return false;
     for (let i = 0; i < keysA.length; i++) {
-      if (!Object.prototype.hasOwnProperty.call(b, keysA[i]) || !Object.is(a[keysA[i]], b[keysA[i]])) {
+      if (
+        !Object.prototype.hasOwnProperty.call(b, keysA[i]) ||
+        !Object.is(a[keysA[i]], b[keysA[i]])
+      ) {
         return false;
       }
     }
@@ -66,20 +75,25 @@ class Store {
 
   // Connect to the WebSocket Inspector Server
   connectInspector() {
-    this.setState({ status: 'connecting', statusText: 'Connecting to Inspector...' });
+    this.setState({
+      status: "connecting",
+      statusText: "Connecting to Inspector...",
+    });
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const socketUrl = `${protocol}//${window.location.host}`;
 
-    console.log(`[Dashboard] Connecting to WebSocket server at ${socketUrl}...`);
+    console.log(
+      `[Dashboard] Connecting to WebSocket server at ${socketUrl}...`,
+    );
     this.socket = new WebSocket(socketUrl);
 
     this.socket.onopen = () => {
-      console.log('[Dashboard] Connected to WebSocket server.');
-      this.setState({ status: 'online', statusText: 'Dashboard Connected' });
-      this.addLog('SYSTEM', 'Connected to Inspector Server', 'info');
+      console.log("[Dashboard] Connected to WebSocket server.");
+      this.setState({ status: "online", statusText: "Dashboard Connected" });
+      this.addLog("SYSTEM", "Connected to Inspector Server", "info");
       // Register browser connection and fetch initial cached state
-      this.socket.send(JSON.stringify({ event: 'BROWSER_CONNECT' }));
+      this.socket.send(JSON.stringify({ event: "BROWSER_CONNECT" }));
       // Automatically request a full refresh from the App client
       this.requestFullRefresh();
     };
@@ -89,49 +103,56 @@ class Store {
         const message = JSON.parse(event.data);
         this.handleSocketMessage(message);
       } catch (err) {
-        console.error('[Dashboard] Failed to parse message:', err);
+        console.error("[Dashboard] Failed to parse message:", err);
       }
     };
 
     this.socket.onclose = () => {
-      console.warn('[Dashboard] Connection closed. Retrying in 4 seconds...');
-      this.setState({ status: 'offline', statusText: 'Connection Lost. Re-connecting...' });
-      this.addLog('SYSTEM', 'Connection to Inspector Server lost', 'error');
+      console.warn("[Dashboard] Connection closed. Retrying in 4 seconds...");
+      this.setState({
+        status: "offline",
+        statusText: "Connection Lost. Re-connecting...",
+      });
+      this.addLog("SYSTEM", "Connection to Inspector Server lost", "error");
       setTimeout(() => this.connectInspector(), 4000);
     };
 
     this.socket.onerror = (err) => {
-      console.error('[Dashboard] WebSocket error:', err);
+      console.error("[Dashboard] WebSocket error:", err);
     };
   }
 
   handleSocketMessage(message) {
-    console.log('[Dashboard] Received WebSocket event:', message.event, message);
+    console.log(
+      "[Dashboard] Received WebSocket event:",
+      message.event,
+      message,
+    );
 
     switch (message.event) {
-      case 'INITIAL_STATE':
-      case 'CACHE_UPDATE':
+      case "INITIAL_STATE":
+      case "CACHE_UPDATE":
         this.handleCacheUpdate(message.cache);
         break;
 
-      case 'APP_STATUS':
+      case "APP_STATUS":
         this.handleAppStatus(message);
         break;
 
-      case 'APP_DISCONNECTED':
+      case "APP_DISCONNECTED":
         this.handleAppDisconnected();
         break;
 
-      case 'REALM_UPDATED':
-      case 'REALM_CHANGED':
+      case "REALM_UPDATED":
+      case "REALM_CHANGED":
         this.handleRealmChanged(message);
         break;
 
-      case 'OPERATION_SUCCESS':
+      case "OPERATION_SUCCESS":
         this.handleOperationSuccess(message);
         break;
 
-      case 'OPERATION_ERROR':
+      case "OPERATION_ERROR":
         this.handleOperationError(message);
         break;
 
@@ -146,14 +167,17 @@ class Store {
 
     // Auto-select first active file if none selected
     if (!nextFile && files.length > 0) {
-      const activeFile = files.find(f => cache[f].status === 'online');
+      const activeFile = files.find((f) => cache[f].status === "online");
       nextFile = activeFile || files[0];
     }
 
     let nextSchema = this.state.selectedSchema;
     if (nextFile && cache[nextFile]) {
       const schemas = cache[nextFile].schemas || [];
-      if (schemas.length > 0 && (!nextSchema || !schemas.find(s => s.name === nextSchema))) {
+      if (
+        schemas.length > 0 &&
+        (!nextSchema || !schemas.find((s) => s.name === nextSchema))
+      ) {
         nextSchema = schemas[0].name;
       }
     }
@@ -162,7 +186,7 @@ class Store {
       currentCache: cache,
       selectedFile: nextFile,
       selectedSchema: nextSchema,
-      lastUpdatedTime: new Date().toLocaleTimeString()
+      lastUpdatedTime: new Date().toLocaleTimeString(),
     });
 
     this.updateRecordCount();
@@ -170,33 +194,37 @@ class Store {
 
   handleAppStatus(message) {
     const { status, realmFile } = message;
-    this.addLog('APP_CLIENT', `React Native App is now ${status.toUpperCase()} (monitoring: ${realmFile || 'none'})`, 'info');
+    this.addLog(
+      "APP_CLIENT",
+      `React Native App is now ${status.toUpperCase()} (monitoring: ${realmFile || "none"})`,
+      "info",
+    );
   }
 
   handleAppDisconnected() {
-    this.addLog('APP_CLIENT', 'React Native App disconnected', 'error');
+    this.addLog("APP_CLIENT", "React Native App disconnected", "error");
 
     // Mark files as offline
     const updatedCache = { ...this.state.currentCache };
     Object.keys(updatedCache).forEach((fileName) => {
-      updatedCache[fileName].status = 'offline';
+      updatedCache[fileName].status = "offline";
     });
 
     this.setState({
-      currentCache: updatedCache
+      currentCache: updatedCache,
     });
   }
 
   handleRealmChanged(message) {
     const { changeType, schemaName, changeLog, cache } = message;
 
-    const type = changeLog ? changeLog.type : (changeType || 'UPDATE');
-    const schema = changeLog ? changeLog.schemaName : (schemaName || 'all');
+    const type = changeLog ? changeLog.type : changeType || "UPDATE";
+    const schema = changeLog ? changeLog.schemaName : schemaName || "all";
 
     this.addLog(
-      'APP_CLIENT',
+      "APP_CLIENT",
       `Realm change detected: ${type} on schema "${schema}"`,
-      type === 'DELETE' ? 'error' : type === 'INSERT' ? 'success' : 'info'
+      type === "DELETE" ? "error" : type === "INSERT" ? "success" : "info",
     );
 
     // Keep active record reference updated if it still exists
@@ -205,7 +233,9 @@ class Store {
       const pkName = this.getPrimaryKeyField(schema);
       if (pkName && cache[this.state.selectedFile]) {
         const list = cache[this.state.selectedFile].data[schema] || [];
-        const found = list.find(r => String(r[pkName]) === String(updatedActiveRecord[pkName]));
+        const found = list.find(
+          (r) => String(r[pkName]) === String(updatedActiveRecord[pkName]),
+        );
         updatedActiveRecord = found || null;
       }
     }
@@ -213,16 +243,16 @@ class Store {
     this.setState({
       currentCache: cache,
       activeRecord: updatedActiveRecord,
-      lastUpdatedTime: new Date().toLocaleTimeString()
+      lastUpdatedTime: new Date().toLocaleTimeString(),
     });
 
     this.updateRecordCount();
   }
 
   handleOperationSuccess(message) {
-    this.addLog('OPERATION', message.message, 'success');
+    this.addLog("OPERATION", message.message, "success");
     if (window.showToast) {
-      window.showToast('Success', message.message, 'success');
+      window.showToast("Success", message.message, "success");
     }
     // Close active modal
     if (window.closeAddColumnModal) window.closeAddColumnModal();
@@ -230,9 +260,9 @@ class Store {
   }
 
   handleOperationError(message) {
-    this.addLog('OPERATION', `Error: ${message.message}`, 'error');
+    this.addLog("OPERATION", `Error: ${message.message}`, "error");
     if (window.showToast) {
-      window.showToast('Operation Failed', message.message, 'error');
+      window.showToast("Operation Failed", message.message, "error");
     }
     if (window.showModalError) {
       window.showModalError(message.message);
@@ -242,14 +272,22 @@ class Store {
   // Trigger cache refresh on client React Native app
   requestFullRefresh() {
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-      this.addLog('SYSTEM', 'Requesting force refresh from App client...', 'info');
-      this.socket.send(JSON.stringify({ event: 'REQUEST_REFRESH' }));
+      this.addLog(
+        "SYSTEM",
+        "Requesting force refresh from App client...",
+        "info",
+      );
+      this.socket.send(JSON.stringify({ event: "REQUEST_REFRESH" }));
       if (window.showToast) {
-        window.showToast('Sync Sent', 'Requested full database refresh from React Native app.', 'info');
+        window.showToast(
+          "Sync Sent",
+          "Requested full database refresh from React Native app.",
+          "info",
+        );
       }
     } else {
       if (window.showToast) {
-        window.showToast('Error', 'Debugger server offline.', 'error');
+        window.showToast("Error", "Debugger server offline.", "error");
       }
     }
   }
@@ -257,41 +295,47 @@ class Store {
   // Send add record request
   sendAddRecord(schemaName, record) {
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-      this.socket.send(JSON.stringify({
-        event: 'ADD_RECORD',
-        schemaName,
-        record
-      }));
+      this.socket.send(
+        JSON.stringify({
+          event: "ADD_RECORD",
+          schemaName,
+          record,
+        }),
+      );
     }
   }
 
   // Send update record request
   sendUpdateRecord(schemaName, primaryKeyVal, record) {
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-      this.socket.send(JSON.stringify({
-        event: 'UPDATE_RECORD',
-        schemaName,
-        primaryKeyVal,
-        record
-      }));
+      this.socket.send(
+        JSON.stringify({
+          event: "UPDATE_RECORD",
+          schemaName,
+          primaryKeyVal,
+          record,
+        }),
+      );
     }
   }
 
   // Send add schema column request
   sendAddSchemaColumn(schemaName, columnName, columnType, optional) {
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-      this.socket.send(JSON.stringify({
-        event: 'ADD_SCHEMA_COLUMN',
-        schemaName,
-        columnName,
-        columnType,
-        optional
-      }));
+      this.socket.send(
+        JSON.stringify({
+          event: "ADD_SCHEMA_COLUMN",
+          schemaName,
+          columnName,
+          columnType,
+          optional,
+        }),
+      );
     }
   }
 
   // Add system / action log to console stream list
-  addLog(source, message, type = 'info') {
+  addLog(source, message, type = "info") {
     const timestamp = new Date().toLocaleTimeString();
     const newLog = { timestamp, source, message, type };
     this.setState({ logs: [...this.state.logs, newLog] });
@@ -316,7 +360,7 @@ class Store {
     const { currentCache, selectedFile } = this.state;
     if (!selectedFile || !currentCache[selectedFile]) return null;
     const schemas = currentCache[selectedFile].schemas || [];
-    const schema = schemas.find(s => s.name === schemaName);
+    const schema = schemas.find((s) => s.name === schemaName);
     return schema ? schema.primaryKey : null;
   }
 }
