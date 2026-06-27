@@ -5,6 +5,10 @@ plugins {
     id 'maven-publish'
 }
 
+kotlin {
+    jvmToolchain(17)
+}
+
 group = 'io.realm.debugger'
 version = '1.0.5'
 
