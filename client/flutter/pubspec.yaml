@@ -1,7 +1,7 @@
 name: realm_live_debugger
 description: A Live, Real-Time Realm Database Inspector & Debugger Client for Flutter. Connects to the server dashboard.
 version: 1.0.5
-homepage: https://github.com/ladaninandan/react-native-realm-live-debugger
+publish_to: 'none'
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
