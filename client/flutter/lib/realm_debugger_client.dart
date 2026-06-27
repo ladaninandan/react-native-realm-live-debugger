@@ -88,10 +88,10 @@ class RealmDebuggerClient {
 
   List<Map<String, dynamic>> _serializeSchemas() {
     return realm.schema.map((schema) {
-      final properties = schema.properties.map((prop) {
+      final properties = schema.map((prop) {
         return {
           'name': prop.name,
-          'type': prop.type.name,
+          'type': prop.propertyType.name,
           'optional': prop.optional,
           'primaryKey': prop.primaryKey,
         };
@@ -113,9 +113,9 @@ class RealmDebuggerClient {
     return result;
   }
 
-  Map<String, dynamic> _serializeObject(DynamicRealmObject obj, SchemaObject schema) {
+  Map<String, dynamic> _serializeObject(RealmObject obj, SchemaObject schema) {
     final map = <String, dynamic>{};
-    for (final prop in schema.properties) {
+    for (final prop in schema) {
       final name = prop.name;
       try {
         final val = obj.dynamic.get(name);
@@ -123,21 +123,21 @@ class RealmDebuggerClient {
           map[name] = null;
         } else if (val is DateTime) {
           map[name] = val.toIso8601String();
-        } else if (val is DynamicRealmObject) {
-          final targetSchema = realm.schema.singleWhere((s) => s.name == val.dynamic.type);
-          final pkName = targetSchema.primaryKey;
+        } else if (val is RealmObject) {
+          final targetSchema = realm.schema.singleWhere((s) => s.name == val.objectSchema.name);
+          final pkName = targetSchema.primaryKey?.name;
           if (pkName != null) {
             map[name] = {
-              '__type': val.dynamic.type,
+              '__type': val.objectSchema.name,
               '__primaryKey': val.dynamic.get(pkName)?.toString(),
             };
           } else {
-            map[name] = '[Link: ${val.dynamic.type}]';
+            map[name] = '[Link: ${val.objectSchema.name}]';
           }
         } else if (val is List) {
           map[name] = val.map((item) {
-            if (item is DynamicRealmObject) {
-              return '[Link: ${item.dynamic.type}]';
+            if (item is RealmObject) {
+              return '[Link: ${item.objectSchema.name}]';
             }
             return item;
           }).toList();
@@ -200,7 +200,16 @@ class RealmDebuggerClient {
     try {
       realm.write(() {
         final sanitizedRecord = _sanitizeIncomingRecord(schemaName, record);
-        realm.dynamic.create(schemaName, sanitizedRecord);
+        final schema = realm.schema.singleWhere((s) => s.name == schemaName);
+        final pkName = schema.primaryKey?.name;
+        final pkVal = pkName != null ? sanitizedRecord[pkName] : null;
+
+        final obj = realm.dynamic.create(schemaName, primaryKey: pkVal);
+        sanitizedRecord.forEach((key, value) {
+          if (key != pkName) {
+            obj.dynamic.set(key, value);
+          }
+        });
       });
       _sendOperationStatus(true, 'Record added successfully.');
     } catch (e) {
@@ -211,12 +220,14 @@ class RealmDebuggerClient {
   void _handleUpdateRecord(String schemaName, dynamic pkVal, Map<String, dynamic> record) {
     try {
       final schema = realm.schema.singleWhere((s) => s.name == schemaName);
-      final pkName = schema.primaryKey;
+      final pkName = schema.primaryKey?.name;
       if (pkName == null) {
         throw 'Table does not have a primary key.';
       }
 
-      final obj = realm.dynamic.find(schemaName, pkVal);
+      final objects = realm.dynamic.all(schemaName);
+      final objList = objects.query('$pkName == \$0', [pkVal]);
+      final obj = objList.isEmpty ? null : objList.first;
       if (obj == null) {
         throw 'Record not found.';
       }
@@ -243,16 +254,16 @@ class RealmDebuggerClient {
       final key = entry.key;
       final val = entry.value;
 
-      final prop = schema.properties.firstWhere((p) => p.name == key);
+      final prop = schema.firstWhere((p) => p.name == key);
       if (val == null) {
         sanitized[key] = null;
-      } else if (prop.type == RealmPropertyType.timestamp) {
+      } else if (prop.propertyType == RealmPropertyType.timestamp) {
         sanitized[key] = DateTime.parse(val.toString());
-      } else if (prop.type == RealmPropertyType.int) {
+      } else if (prop.propertyType == RealmPropertyType.int) {
         sanitized[key] = int.parse(val.toString());
-      } else if (prop.type == RealmPropertyType.double) {
+      } else if (prop.propertyType == RealmPropertyType.double) {
         sanitized[key] = double.parse(val.toString());
-      } else if (prop.type == RealmPropertyType.bool) {
+      } else if (prop.propertyType == RealmPropertyType.bool) {
         sanitized[key] = val == true || val.toString().toLowerCase() == 'true';
       } else {
         sanitized[key] = val;
