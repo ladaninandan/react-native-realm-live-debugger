@@ -33,9 +33,11 @@ To initialize the debugger, call the `initRealmDebugger` function as soon as you
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
 | `initialRealm` | `Realm` | The current active instance of your Realm database. |
-| `realmConfig` | `Realm.Configuration` | The configuration object used to open Realm (required to reload Realm on dynamic schema updates). |
-| `setRealmInstance` | `(newRealm: Realm) => void` | Callback function to update your app state with the new Realm instance when schemas change. |
-| `serverUrl` | `string` *(Optional)* | WebSocket URL of the debugger server. Defaults to `ws://localhost:3000`. |
+| `realmConfig` | `Realm.Configuration` | The configuration object used to open Realm (pass `null` if not using dynamic schema features). |
+| `serverUrl` | `string` *(Optional)* | WebSocket URL of the debugger server. Defaults to `ws://localhost:5000` in dev mode. |
+
+> [!WARNING]
+> **Do NOT pass a callback function as the 3rd argument.** The 3rd parameter expects a WebSocket URL string, not a function. Passing a function will cause a silent connection failure.
 
 ---
 
@@ -49,7 +51,7 @@ If your React Native app opens Realm dynamically in `App.tsx` and manages it via
 ```typescript
 import React, { useEffect, useState } from 'react';
 import Realm from 'realm';
-import { initRealmDebugger } from './src/utils/realmDebuggerClient';
+import { initRealmDebugger } from 'react-native-realm-live-debugger';
 
 // 1. Define your Realm config (keep a reference)
 const realmConfig: Realm.Configuration = {
@@ -68,12 +70,8 @@ export default function App() {
       // 3. Initialize the debugger (DEV mode only)
       if (__DEV__) {
         initRealmDebugger(
-          openedRealm,       // Current instance
-          realmConfig,       // Config object
-          (newRealm) => {    // Callback to update state on dynamic schema/column changes
-            setRealm(newRealm);
-          },
-          'ws://localhost:3000'
+          openedRealm,       // Current Realm instance
+          realmConfig         // Config object (or null)
         );
       }
     });
@@ -91,24 +89,14 @@ If your project uses the hook-based `@realm/react` library, you can initialize t
 ```typescript
 import React, { useEffect } from 'react';
 import { useRealm } from '@realm/react';
-import { initRealmDebugger } from './src/utils/realmDebuggerClient';
-import { myRealmConfig } from './realmConfig'; // Keep a reference to your configuration
+import { initRealmDebugger } from 'react-native-realm-live-debugger';
 
 export function RealmDebuggerConnector() {
   const realm = useRealm();
 
   useEffect(() => {
     if (__DEV__ && realm) {
-      const cleanUp = initRealmDebugger(
-        realm,
-        myRealmConfig,
-        (newRealm) => {
-          // Note: React Native @realm/react automatically refreshes hooks on instance changes,
-          // but passing a no-op handler complies with client interface.
-          console.log('[RealmDebugger] Realm re-opened with new schemas.');
-        },
-        'ws://localhost:3000'
-      );
+      const cleanUp = initRealmDebugger(realm, null);
 
       return () => cleanUp(); // Cleans up WebSocket and listener on unmount
     }
@@ -122,14 +110,14 @@ export function RealmDebuggerConnector() {
 
 ## 🔌 Android Device Configuration (Physical & Emulator)
 
-React Native apps running on Android devices need explicit network mapping to reach port `3000` on your development PC:
+React Native apps running on Android devices need explicit network mapping to reach port `5000` on your development PC:
 
 ### Option 1: Port Forwarding (Recommended)
 If your Android physical device is connected via USB, or if you are using an Android Emulator, run this command in your development terminal:
 ```bash
-adb reverse tcp:3000 tcp:3000
+adb reverse tcp:5000 tcp:5000
 ```
-This forces the Android device to route all network calls directed to `localhost:3000` directly to port `3000` on your PC.
+This forces the Android device to route all network calls directed to `localhost:5000` directly to port `5000` on your PC.
 
 ### Option 2: IP Address Mapping
 Alternatively, you can provide the local IP address of your development machine in the `serverUrl` parameter:
@@ -137,8 +125,7 @@ Alternatively, you can provide the local IP address of your development machine 
 initRealmDebugger(
   realm, 
   realmConfig, 
-  setRealm, 
-  'ws://192.168.1.45:3000' // Your machine's Wi-Fi / Ethernet LAN IP
+  'ws://192.168.1.45:5000' // Your machine's Wi-Fi / Ethernet LAN IP
 );
 ```
 

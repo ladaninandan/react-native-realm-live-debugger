@@ -81,29 +81,66 @@ const realm = useRealm();
 
 useEffect(() => {
   if (__DEV__ && realm) {
-    // Initialize the live debugger directly from the package
-    const cleanUp = initRealmDebugger(realm, null, () => {});
+    // Initialize the live debugger
+    // Signature: initRealmDebugger(realmInstance, realmConfig, serverUrl?)
+    const cleanUp = initRealmDebugger(realm, null);
     return () => cleanUp();
   }
 }, [realm]);
 ```
 
+> [!IMPORTANT]
+> **Function Signature:** `initRealmDebugger(realmInstance, realmConfig, serverUrl?)`
+> - `realmInstance` — Your active Realm database instance
+> - `realmConfig` — Your Realm configuration object (pass `null` if not using dynamic schema features)
+> - `serverUrl` *(optional)* — WebSocket URL of the debugger server (defaults to `ws://localhost:5000` in dev mode)
+>
+> **Do NOT pass a callback function as the 3rd argument** — it expects a `string` (URL), not a function.
+
 3. Start the Debugger Server:
+
 In the root directory of your React Native project, run the following command to start the debugger:
 ```bash
 npx realm-debugger
 ```
 This automatically starts the local backend server and opens the Live Dashboard in your default web browser.
 
+4. Android Port Forwarding (**Required for Android devices**):
+
+If you are running on an Android physical device or emulator, run this command so your phone can reach the debugger server on your PC:
+```bash
+adb reverse tcp:5000 tcp:5000
+```
+
+5. Reload the App:
+
+After the above steps, reload your React Native app:
+- Press `r` in the Metro terminal, or
+- Shake the device and tap **"Reload"**
+
+You should see `[Debugger] App connected` in the `npx realm-debugger` terminal.
+
 > [!NOTE]
-> If testing on an **Android physical device**, replace `localhost` with your machine's local IP address (e.g., `ws://192.168.1.5:3000`), or run the reverse port forwarding command:
-> `adb reverse tcp:3000 tcp:3000`
+> If testing on an **Android physical device** and `adb reverse` does not work, you can replace `localhost` with your machine's local IP address:
+> ```typescript
+> const cleanUp = initRealmDebugger(realm, null, 'ws://192.168.1.5:5000');
+> ```
+
+---
+
+## ⚠️ Common Pitfalls
+
+| Problem | Cause | Fix |
+|:--------|:------|:----|
+| App not connecting | Wrong 3rd argument (passing a function instead of a URL string) | Use `initRealmDebugger(realm, config)` — do NOT pass a callback as the 3rd arg |
+| App not connecting on Android | Missing port forwarding | Run `adb reverse tcp:5000 tcp:5000` |
+| Dashboard shows `appConnected: false` | App hasn't loaded yet or port mismatch | Reload the app and verify the server is running on port `5000` |
 
 ---
 
 ## 📺 Dashboard Controls
 
-Open `http://localhost:3000` in any web browser:
+Open `http://localhost:5000` in any web browser:
 
 1. **Left Sidebar**:
    - **Realm Files**: Shows active connected files and status (`online` or `offline`). Select a file to view its schemas.
