@@ -3,7 +3,7 @@ const http = require('http');
 const path = require('path');
 const crypto = require('crypto');
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || (process.env.NODE_ENV === 'production' ? 3000 : 5000);
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
 // 1. Simple HTTP Server serving the public folder

@@ -68,8 +68,11 @@ function serializeRealmObject(obj: any, schema: RealmSchema): any {
 export function initRealmDebugger(
   initialRealm: any,
   realmConfig: any,
-  setRealmInstance: (newRealm: any) => void,
-  serverUrl: string = 'ws://localhost:3000'
+  serverUrl: string = typeof __DEV__ !== 'undefined' && __DEV__
+    ? 'ws://localhost:5000'
+    : (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'production'
+        ? 'ws://localhost:3000'
+        : 'ws://localhost:5000')
 ) {
   let realm = initialRealm;
   let ws: WebSocket | null = null;

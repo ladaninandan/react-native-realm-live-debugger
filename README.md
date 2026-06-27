@@ -44,12 +44,19 @@ npm install
 
 ### 2. Start the Debugger Server
 
-Run the server on your development machine:
+Run the server on your development machine and automatically open the debugger in your default browser:
+
+```bash
+npm run realm-debugger
+```
+
+Or start the server without automatically opening a browser window:
 
 ```bash
 npm start
 ```
-The server will start on `http://localhost:3000`. Keep this window running in the background.
+
+The server will start on `http://localhost:3000` (or `http://localhost:5000` in development). Keep this window running in the background.
 
 ---
 

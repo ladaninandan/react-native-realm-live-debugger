@@ -6,7 +6,8 @@ const path = require('path');
 // 1. Run the main server script
 require('../server.js');
 
-const url = 'http://localhost:3000';
+const PORT = process.env.PORT || (process.env.NODE_ENV === 'production' ? 3000 : 5000);
+const url = `http://localhost:${PORT}`;
 console.log(`\n🌍 Launching web browser to inspect Realm Database...`);
 
 // 2. Select platform-specific command to launch the browser

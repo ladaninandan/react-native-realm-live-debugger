@@ -16,7 +16,8 @@
   ],
   "scripts": {
     "start": "node server.js",
-    "test": "node test/smoke.test.js"
+    "test": "node test/smoke.test.js",
+    "realm-debugger": "node bin/cli.js"
   },
   "dependencies": {
     "express": "^4.19.2",
