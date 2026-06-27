@@ -1,6 +1,10 @@
 name: Publish Package to NPM
 
 on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*'
   release:
     types: [published]
 
@@ -20,7 +24,22 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
+      - name: Check if version already published
+        id: check-version
+        run: |
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          PUBLISHED_VERSION=$(npm view $PACKAGE_NAME version 2>/dev/null || echo "0.0.0")
+          if [ "$PACKAGE_VERSION" = "$PUBLISHED_VERSION" ]; then
+            echo "Version $PACKAGE_VERSION is already published on NPM."
+            echo "should_publish=false" >> $GITHUB_OUTPUT
+          else
+            echo "Version $PACKAGE_VERSION is not published yet. Proceeding with publish."
+            echo "should_publish=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Publish to NPM
+        if: steps.check-version.outputs.should_publish == 'true'
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
