@@ -1,0 +1,23 @@
+name: Validate iOS Swift Package
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'ios-v*' # Triggers when you push a tag like ios-v1.0.5
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Select Xcode Version
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Build Swift Package
+        run: swift build
