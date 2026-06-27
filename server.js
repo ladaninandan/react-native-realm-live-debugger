@@ -13,6 +13,17 @@ const server = http.createServer((req, res) => {
   let urlPath = req.url.split("?")[0].split("#")[0];
   if (urlPath === "/") urlPath = "/index.html";
 
+  if (urlPath === "/api/status") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({
+      status: "online",
+      appConnected: activeAppConnection !== null,
+      connectionsCount: clients.size,
+      cache: realmCache
+    }));
+    return;
+  }
+
   // Prevent directory traversal by resolving the absolute path safely
   const filePath = path.resolve(PUBLIC_DIR, "." + path.normalize(urlPath));
 
