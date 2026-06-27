@@ -1,0 +1,29 @@
+name: Publish Flutter Package to Pub.dev
+
+on:
+  push:
+    tags:
+      - 'flutter-v*' # Triggers when you push a tag like flutter-v1.0.5
+
+# Required for OIDC authentication with pub.dev (no secrets needed!)
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Dart SDK
+        uses: dart-lang/setup-dart@v1
+
+      - name: Install Dependencies
+        run: dart pub get
+        working-directory: client/flutter
+
+      - name: Publish Package to Pub.dev
+        run: dart pub publish --force
+        working-directory: client/flutter

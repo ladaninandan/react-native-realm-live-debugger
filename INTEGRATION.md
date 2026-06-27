@@ -137,3 +137,113 @@ initRealmDebugger(
    Always wrap `initRealmDebugger` in a `__DEV__` check. This prevents the debugger WebSocket and hot-reloading code from being bundled into your production release builds.
 2. **Schema Versioning:**
    When adding columns dynamically from the web panel, the debugger client automatically increments the `schemaVersion` parameter and re-opens the Realm file. Make sure your app doesn't enforce strict schema version overrides that could conflict with this during active debug sessions.
+
+## 🎯 Flutter/Dart Integration
+
+We support **Flutter** apps using the `realm` Dart package. You can integrate this by referencing the client library directly from GitHub in your `pubspec.yaml`.
+
+### Step 1: Add Dependency to `pubspec.yaml`
+Add the package to your Flutter project's `pubspec.yaml` file:
+
+```yaml
+dependencies:
+  flutter:
+    sdk: flutter
+  realm: ^0.10.0 # Or your current Realm version
+  
+  # Import client directly from the GitHub repository
+  realm_live_debugger:
+    git:
+      url: https://github.com/ladaninandan/react-native-realm-live-debugger.git
+      path: client/flutter
+```
+
+Then run:
+```bash
+flutter pub get
+```
+
+### Step 2: Initialize in Flutter
+Initialize the debugger client when you open your Realm database. Make sure to run it only in debug mode:
+
+```dart
+import 'package:flutter/foundation.dart';
+import 'package:realm/realm.dart';
+import 'package:realm_live_debugger/realm_debugger_client.dart';
+
+void initDatabase() {
+  final config = Configuration.local([User.schema, Todo.schema]);
+  final realm = Realm(config);
+
+  if (kDebugMode) {
+    final debugger = RealmDebuggerClient(
+      realm,
+      serverUrl: 'ws://localhost:5000', // ws://10.0.2.2:5000 for Android emulator
+    );
+    debugger.start();
+  }
+}
+```
+
+### Step 3: Run the Dashboard
+Start the debugger server on your computer as usual:
+```bash
+npx realm-debugger
+```
+If debugging on an **Android Emulator**, remember to run:
+```bash
+adb reverse tcp:5000 tcp:5000
+```
+
+---
+
+## 🤖 Native Android (Kotlin) Integration
+
+We support native Android apps built with the MongoDB Realm Kotlin SDK.
+
+### Step 1: Add Client File
+Copy `RealmDebuggerClient.kt` from the repository folder `client/android/RealmDebuggerClient.kt` into your Android project source path (e.g. `com/yourcompany/app/debugger/RealmDebuggerClient.kt`).
+
+### Step 2: Add Dependencies
+Ensure you have the **OkHttp** dependency in your app's `build.gradle`:
+```gradle
+dependencies {
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+}
+```
+
+### Step 3: Initialize in Kotlin
+Initialize the debugger client when opening your Realm database:
+```kotlin
+import io.realm.debugger.RealmDebuggerClient
+
+val realm = Realm.open(configuration)
+
+// Initialize in debug configurations only
+if (BuildConfig.DEBUG) {
+    val debugger = RealmDebuggerClient(realm, "ws://10.0.2.2:5000") // 10.0.2.2 maps to local machine from emulator
+    debugger.start()
+}
+```
+
+---
+
+## 🍏 Native iOS (Swift) Integration
+
+We support native iOS apps built with the Realm Swift SDK.
+
+### Step 1: Add Client File
+Copy `RealmDebuggerClient.swift` from the repository folder `client/ios/RealmDebuggerClient.swift` into your Xcode project.
+
+### Step 2: Initialize in Swift
+Initialize the debugger client when opening your Realm database:
+```swift
+import RealmSwift
+
+let realm = try! Realm()
+
+#if DEBUG
+let debugger = RealmDebuggerClient(realm: realm, serverUrlString: "ws://localhost:5000")
+debugger.start()
+#endif
+```

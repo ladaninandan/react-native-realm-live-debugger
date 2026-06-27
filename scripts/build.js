@@ -131,6 +131,8 @@ if (fs.existsSync(clientPkg)) {
   console.log(`   ✅ dist/client/package.json`);
 }
 
+
+
 console.log("\n🎉 Build complete! The dist/ folder is ready for publishing.\n");
 
 // Show dist contents
