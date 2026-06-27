@@ -88,6 +88,13 @@ useEffect(() => {
 }, [realm]);
 ```
 
+3. Start the Debugger Server:
+In the root directory of your React Native project, run the following command to start the debugger:
+```bash
+npx realm-debugger
+```
+This automatically starts the local backend server and opens the Live Dashboard in your default web browser.
+
 > [!NOTE]
 > If testing on an **Android physical device**, replace `localhost` with your machine's local IP address (e.g., `ws://192.168.1.5:3000`), or run the reverse port forwarding command:
 > `adb reverse tcp:3000 tcp:3000`
