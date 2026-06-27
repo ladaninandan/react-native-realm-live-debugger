@@ -86,7 +86,7 @@ public class RealmDebuggerClient {
                     "name": prop.name,
                     "type": String(describing: prop.type),
                     "optional": prop.isOptional,
-                    "primaryKey": prop.isPrimaryKey
+                    "primaryKey": objectSchema.primaryKeyProperty?.name == prop.name
                 ] as [String: Any]
             }
             
@@ -105,7 +105,7 @@ public class RealmDebuggerClient {
             let objects = realm.dynamicObjects(className)
             
             let records = objects.map { obj in
-                return serializeObject(obj, schema: objectSchema)
+                return self.serializeObject(obj, schema: objectSchema)
             }
             
             data[className] = Array(records)
@@ -191,7 +191,7 @@ public class RealmDebuggerClient {
     private func handleAddRecord(_ schemaName: String, record: [String: Any]) {
         do {
             try realm.write {
-                let obj = realm.create(DynamicObject.self, value: record, update: .error)
+                _ = realm.create(DynamicObject.self, value: record, update: .error)
             }
             sendOperationStatus(success: true, message: "Record added successfully.")
         } catch {
