@@ -9,11 +9,16 @@ const PUBLIC_DIR = path.join(__dirname, "public");
 
 // 1. Simple HTTP Server serving the public folder
 const server = http.createServer((req, res) => {
-  let urlPath = req.url === "/" ? "/index.html" : req.url;
-  const filePath = path.join(PUBLIC_DIR, urlPath);
+  // Strip query parameters and hash fragments
+  let urlPath = req.url.split("?")[0].split("#")[0];
+  if (urlPath === "/") urlPath = "/index.html";
 
-  // Guard against directory traversal attacks
-  if (!filePath.startsWith(PUBLIC_DIR)) {
+  // Prevent directory traversal by resolving the absolute path safely
+  const filePath = path.resolve(PUBLIC_DIR, "." + path.normalize(urlPath));
+
+  // Guard against directory traversal attacks (must reside within PUBLIC_DIR)
+  const safePrefix = PUBLIC_DIR + path.sep;
+  if (filePath !== PUBLIC_DIR && !filePath.startsWith(safePrefix)) {
     res.writeHead(403, { "Content-Type": "text/plain" });
     res.end("Forbidden");
     return;

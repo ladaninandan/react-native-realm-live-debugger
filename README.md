@@ -28,7 +28,7 @@
 ### 1. Install
 
 ```bash
-npm install react-native-realm-live-debugger
+npm install react-native-realm-live-debugger --legacy-peer-deps
 ```
 
 ### 2. Add to Your React Native App
