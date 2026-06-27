@@ -1,7 +1,7 @@
 {
   "name": "react-native-realm-live-debugger",
-  "version": "1.0.2",
-  "description": "Live Read-Only Realm Inspector & Debugger for React Native",
+  "version": "1.0.3",
+  "description": "Live Read-Only Realm Database Inspector & Debugger for React Native — View schemas, records, and real-time changes in your browser via WebSockets",
   "main": "client/realmDebuggerClient.ts",
   "bin": {
     "realm-debugger": "bin/cli.js"
@@ -12,13 +12,43 @@
     "public",
     "server.js",
     "README.md",
-    "INTEGRATION.md"
+    "INTEGRATION.md",
+    "LICENSE"
   ],
   "scripts": {
     "start": "node server.js",
     "test": "node test/smoke.test.js",
     "realm-debugger": "node bin/cli.js"
   },
+  "keywords": [
+    "react-native",
+    "realm",
+    "debugger",
+    "database",
+    "inspector",
+    "realm-debugger",
+    "realm-inspector",
+    "react-native-debugger",
+    "react-native-realm",
+    "realm-database",
+    "live-debugger",
+    "websocket",
+    "database-viewer",
+    "database-inspector",
+    "realm-viewer",
+    "developer-tools",
+    "devtools"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ladaninandan/react-native-realm-live-debugger.git"
+  },
+  "homepage": "https://github.com/ladaninandan/react-native-realm-live-debugger#readme",
+  "bugs": {
+    "url": "https://github.com/ladaninandan/react-native-realm-live-debugger/issues"
+  },
+  "author": "Nandan Ladani <nandanpatel5585@gmail.com>",
+  "license": "MIT",
   "dependencies": {
     "express": "^4.19.2",
     "ws": "^8.17.0"
