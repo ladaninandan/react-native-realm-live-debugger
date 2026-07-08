@@ -11,11 +11,25 @@ import 'package:realm/realm.dart';
 class RealmDebuggerClient {
   final Realm realm;
   final String serverUrl;
+  final int? port;
   WebSocket? _socket;
   bool _isConnected = false;
   final List<StreamSubscription> _subscriptions = [];
 
-  RealmDebuggerClient(this.realm, {this.serverUrl = 'ws://localhost:5000'});
+  RealmDebuggerClient(this.realm, {this.serverUrl = '', this.port});
+
+  String get _resolvedUrl {
+    if (serverUrl.isNotEmpty) {
+      if (RegExp(r'^\d+$').hasMatch(serverUrl.trim())) {
+        final host = Platform.isAndroid ? '10.0.2.2' : 'localhost';
+        return 'ws://$host:${serverUrl.trim()}';
+      }
+      return serverUrl;
+    }
+    final targetPort = port ?? 5000;
+    final host = Platform.isAndroid ? '10.0.2.2' : 'localhost';
+    return 'ws://$host:$targetPort';
+  }
 
   /// Connects to the WebSocket server and starts streaming database changes.
   void start() {
@@ -24,7 +38,9 @@ class RealmDebuggerClient {
 
   Future<void> _connect() async {
     try {
-      _socket = await WebSocket.connect(serverUrl);
+      final url = _resolvedUrl;
+      print('[RealmDebugger] Connecting to inspector server at $url...');
+      _socket = await WebSocket.connect(url);
       _isConnected = true;
       print('[RealmDebugger] Connected to debugger server.');
 

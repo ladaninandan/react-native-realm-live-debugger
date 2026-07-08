@@ -13,9 +13,23 @@ public class RealmDebuggerClient {
     private var isConnected = false
     private var notificationTokens: [NotificationToken] = []
     
-    public init(realm: Realm, serverUrlString: String = "ws://localhost:5000") {
+    public init(realm: Realm, serverUrlString: String = "", port: Int? = nil) {
         self.realm = realm
-        self.serverUrl = URL(string: serverUrlString)!
+        
+        let resolvedString: String
+        let trimmed = serverUrlString.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            if CharacterSet.decimalDigits.isSuperset(of: CharacterSet(charactersIn: trimmed)) {
+                resolvedString = "ws://localhost:\(trimmed)"
+            } else {
+                resolvedString = trimmed
+            }
+        } else {
+            let targetPort = port ?? 5000
+            resolvedString = "ws://localhost:\(targetPort)"
+        }
+        
+        self.serverUrl = URL(string: resolvedString)!
     }
     
     public func start() {
@@ -23,6 +37,7 @@ public class RealmDebuggerClient {
     }
     
     private func connect() {
+        print("[RealmDebugger] Connecting to inspector server at \(serverUrl.absoluteString)...")
         let session = URLSession(configuration: .default)
         webSocketTask = session.webSocketTask(with: serverUrl)
         webSocketTask?.resume()

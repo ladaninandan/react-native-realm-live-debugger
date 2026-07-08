@@ -20,7 +20,8 @@ import java.util.concurrent.TimeUnit
  */
 class RealmDebuggerClient(
     private val realm: Realm,
-    private val serverUrl: String = "ws://10.0.2.2:5000" // Default for Android Emulator to host machine
+    private val serverUrl: String = "",
+    private val port: Int? = null
 ) {
     private var webSocket: WebSocket? = null
     private val client = OkHttpClient.Builder()
@@ -29,12 +30,27 @@ class RealmDebuggerClient(
     private val handler = Handler(Looper.getMainLooper())
     private var isConnected = false
 
+    private val resolvedUrl: String
+        get() {
+            if (serverUrl.isNotEmpty()) {
+                val trimmed = serverUrl.trim()
+                return if (trimmed.all { it.isDigit() }) {
+                    "ws://10.0.2.2:$trimmed"
+                } else {
+                    trimmed
+                }
+            }
+            val targetPort = port ?: 5000
+            return "ws://10.0.2.2:$targetPort"
+        }
+
     fun start() {
         connect()
     }
 
     private fun connect() {
-        val request = Request.Builder().url(serverUrl).build()
+        println("[RealmDebugger] Connecting to inspector server at $resolvedUrl...")
+        val request = Request.Builder().url(resolvedUrl).build()
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 isConnected = true

@@ -72,7 +72,7 @@ function serializeRealmObject(obj: any, schema: RealmSchema): any {
 export function initRealmDebugger(
   initialRealm: any,
   realmConfig: any,
-  serverUrl: string = typeof __DEV__ !== "undefined" && __DEV__
+  serverUrl: any = typeof __DEV__ !== "undefined" && __DEV__
     ? "ws://localhost:5000"
     : typeof process !== "undefined" &&
         process.env &&
@@ -86,15 +86,22 @@ export function initRealmDebugger(
   let reconnectTimer: any = null;
   const realmFileName = realm.path.split("/").pop() || "default.realm";
 
-  // Auto-format WebSocket URL (ensure ws:// or wss:// prefix)
-  let formattedUrl = serverUrl;
-  if (!formattedUrl.startsWith("ws://") && !formattedUrl.startsWith("wss://")) {
-    if (formattedUrl.startsWith("http://")) {
-      formattedUrl = formattedUrl.replace("http://", "ws://");
-    } else if (formattedUrl.startsWith("https://")) {
-      formattedUrl = formattedUrl.replace("https://", "wss://");
-    } else {
-      formattedUrl = `ws://${formattedUrl}`;
+  // Auto-format WebSocket URL (handles ports, host strings, and complete URLs)
+  let formattedUrl = "ws://localhost:5000";
+  if (typeof serverUrl === "number") {
+    formattedUrl = `ws://localhost:${serverUrl}`;
+  } else if (typeof serverUrl === "string") {
+    const trimmed = serverUrl.trim();
+    if (!isNaN(Number(trimmed)) && trimmed.length > 0) {
+      formattedUrl = `ws://localhost:${trimmed}`;
+    } else if (trimmed.startsWith("ws://") || trimmed.startsWith("wss://")) {
+      formattedUrl = trimmed;
+    } else if (trimmed.startsWith("http://")) {
+      formattedUrl = trimmed.replace("http://", "ws://");
+    } else if (trimmed.startsWith("https://")) {
+      formattedUrl = trimmed.replace("https://", "wss://");
+    } else if (trimmed.length > 0) {
+      formattedUrl = `ws://${trimmed}`;
     }
   }
 
