@@ -86,6 +86,18 @@ export function initRealmDebugger(
   let reconnectTimer: any = null;
   const realmFileName = realm.path.split("/").pop() || "default.realm";
 
+  // Auto-format WebSocket URL (ensure ws:// or wss:// prefix)
+  let formattedUrl = serverUrl;
+  if (!formattedUrl.startsWith("ws://") && !formattedUrl.startsWith("wss://")) {
+    if (formattedUrl.startsWith("http://")) {
+      formattedUrl = formattedUrl.replace("http://", "ws://");
+    } else if (formattedUrl.startsWith("https://")) {
+      formattedUrl = formattedUrl.replace("https://", "wss://");
+    } else {
+      formattedUrl = `ws://${formattedUrl}`;
+    }
+  }
+
   console.log(
     `[RealmDebugger] Initializing inspector for file: ${realmFileName}`,
   );
@@ -122,9 +134,9 @@ export function initRealmDebugger(
     if (reconnectTimer) clearTimeout(reconnectTimer);
 
     console.log(
-      `[RealmDebugger] Connecting to inspector server at ${serverUrl}...`,
+      `[RealmDebugger] Connecting to inspector server at ${formattedUrl}...`,
     );
-    ws = new WebSocket(serverUrl);
+    ws = new WebSocket(formattedUrl);
 
     ws.onopen = () => {
       console.log(
