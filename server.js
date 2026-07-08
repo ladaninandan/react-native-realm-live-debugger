@@ -3,6 +3,40 @@ const http = require("http");
 const path = require("path");
 const crypto = require("crypto");
 
+// Parse CLI arguments to find a custom port
+let customPort = null;
+for (let i = 2; i < process.argv.length; i++) {
+  const arg = process.argv[i];
+  if ((arg === "--port" || arg === "-p") && process.argv[i + 1]) {
+    const val = parseInt(process.argv[i + 1], 10);
+    if (!isNaN(val) && val > 0 && val <= 65535) {
+      customPort = val;
+      break;
+    }
+  } else if (arg.startsWith("--") && !isNaN(parseInt(arg.slice(2), 10))) {
+    const val = parseInt(arg.slice(2), 10);
+    if (val > 0 && val <= 65535) {
+      customPort = val;
+      break;
+    }
+  } else if (arg.startsWith("-") && !isNaN(parseInt(arg.slice(1), 10))) {
+    const val = parseInt(arg.slice(1), 10);
+    if (val > 0 && val <= 65535) {
+      customPort = val;
+      break;
+    }
+  } else if (!isNaN(parseInt(arg, 10))) {
+    const val = parseInt(arg, 10);
+    if (val > 0 && val <= 65535) {
+      customPort = val;
+      break;
+    }
+  }
+}
+if (customPort) {
+  process.env.PORT = customPort.toString();
+}
+
 const PORT =
   process.env.PORT || (process.env.NODE_ENV === "production" ? 3000 : 5000);
 const PUBLIC_DIR = path.join(__dirname, "public");
