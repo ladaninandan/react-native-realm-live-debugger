@@ -1,6 +1,6 @@
 {
   "name": "react-native-realm-live-debugger",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Live Read-Only Realm Database Inspector & Debugger for React Native — View schemas, records, and real-time changes in your browser via WebSockets",
   "main": "dist/client/realmDebuggerClient.js",
   "types": "dist/client/realmDebuggerClient.d.ts",
