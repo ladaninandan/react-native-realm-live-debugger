@@ -136,408 +136,498 @@ export function initRealmDebugger(
     };
   }
 
+  // Socket event handlers
+  async function handleSocketMessage(event: any) {
+    try {
+      const message = JSON.parse(event.data);
+      if (message.event === "FORCE_REFRESH") {
+        console.log(
+          "[RealmDebugger] Force refresh request received from dashboard.",
+        );
+        sendUpdate("REFRESH", "ForceRefresh");
+      } else if (message.event === "ADD_RECORD") {
+        const { schemaName, record } = message;
+        console.log(
+          `[RealmDebugger] Dynamic request to add record to schema "${schemaName}":`,
+          record,
+        );
+
+        try {
+          realm.write(() => {
+            const schemas: RealmSchema[] = realm.schema || [];
+            const schema = schemas.find((s: any) => s.name === schemaName);
+            if (!schema)
+              throw new Error(
+                `Schema "${schemaName}" not found in database.`,
+              );
+
+            const finalRecord: any = {};
+            const properties = schema.properties;
+
+            for (const key of Object.keys(properties)) {
+              let propDef = properties[key];
+              let propType =
+                typeof propDef === "string"
+                  ? propDef
+                  : propDef.type || "string";
+              let val = record[key];
+
+              if (val === undefined || val === null || val === "") {
+                continue;
+              }
+
+              const baseType = propType.endsWith("?")
+                ? propType.slice(0, -1)
+                : propType;
+
+              if (
+                baseType === "objectId" ||
+                (typeof propDef === "object" &&
+                  propDef.objectType === "ObjectId") ||
+                key === "_id"
+              ) {
+                try {
+                  finalRecord[key] = new (
+                    realm.constructor as any
+                  ).BSON.ObjectId(val);
+                } catch {
+                  finalRecord[key] = new (
+                    realm.constructor as any
+                  ).BSON.ObjectId();
+                }
+              } else if (baseType === "date") {
+                const d = new Date(val);
+                if (isNaN(d.getTime())) {
+                  throw new Error(
+                    `Field "${key}" must be a valid date string.`,
+                  );
+                }
+                finalRecord[key] = d;
+              } else if (
+                baseType === "int" ||
+                baseType === "double" ||
+                baseType === "float" ||
+                baseType === "number"
+              ) {
+                const num = Number(val);
+                if (isNaN(num)) {
+                  throw new Error(`Field "${key}" must be a valid number.`);
+                }
+                finalRecord[key] = num;
+              } else if (baseType === "bool" || baseType === "boolean") {
+                finalRecord[key] = val === "true" || val === true;
+              } else if (
+                baseType === "list" ||
+                baseType.endsWith("[]") ||
+                (typeof propDef === "object" &&
+                  (propDef.type === "list" || propDef.type === "array"))
+              ) {
+                try {
+                  if (typeof val === "string") {
+                    if (
+                      val.trim().startsWith("[") &&
+                      val.trim().endsWith("]")
+                    ) {
+                      finalRecord[key] = JSON.parse(val);
+                    } else {
+                      finalRecord[key] = val
+                        .split(",")
+                        .map((s: string) => s.trim())
+                        .filter((s: string) => s.length > 0);
+                    }
+                  } else if (Array.isArray(val)) {
+                    finalRecord[key] = val;
+                  } else {
+                    finalRecord[key] = [];
+                  }
+                } catch {
+                  finalRecord[key] = [];
+                }
+              } else {
+                finalRecord[key] = val;
+              }
+            }
+
+            if (schema.primaryKey && !finalRecord[schema.primaryKey]) {
+              const pkProp = properties[schema.primaryKey];
+              const pkType =
+                typeof pkProp === "string" ? pkProp : pkProp.type || "string";
+              if (pkType === "objectId" || schema.primaryKey === "_id") {
+                finalRecord[schema.primaryKey] = new (
+                  realm.constructor as any
+                ).BSON.ObjectId();
+              }
+            }
+
+            realm.create(schemaName, finalRecord);
+          });
+          console.log(
+            `[RealmDebugger] Record added successfully to schema ${schemaName}`,
+          );
+          ws?.send(
+            JSON.stringify({
+              event: "OPERATION_SUCCESS",
+              message: `Successfully added new record to "${schemaName}".`,
+            }),
+          );
+        } catch (err: any) {
+          console.error(`[RealmDebugger] Failed to add record:`, err);
+          ws?.send(
+            JSON.stringify({
+              event: "OPERATION_ERROR",
+              message: err.message || String(err),
+            }),
+          );
+        }
+      } else if (message.event === "UPDATE_RECORD") {
+        const { schemaName, primaryKeyVal, record } = message;
+        console.log(
+          `[RealmDebugger] Dynamic request to update record in schema "${schemaName}" with PK "${primaryKeyVal}":`,
+          record,
+        );
+
+        try {
+          realm.write(() => {
+            const schemas: RealmSchema[] = realm.schema || [];
+            const schema = schemas.find((s: any) => s.name === schemaName);
+            if (!schema)
+              throw new Error(
+                `Schema "${schemaName}" not found in database.`,
+              );
+
+            const primaryKey = schema.primaryKey;
+            if (!primaryKey)
+              throw new Error(
+                `Schema "${schemaName}" does not have a primary key.`,
+              );
+
+            // Find the object
+            let pkParsed: any = primaryKeyVal;
+            const pkProp = schema.properties[primaryKey];
+            const pkType =
+              typeof pkProp === "string" ? pkProp : pkProp.type || "string";
+            if (pkType === "objectId" || primaryKey === "_id") {
+              pkParsed = new (realm.constructor as any).BSON.ObjectId(
+                primaryKeyVal,
+              );
+            } else if (pkType === "int") {
+              pkParsed = Number(primaryKeyVal);
+            }
+
+            const obj = realm.objectForPrimaryKey(schemaName, pkParsed);
+            if (!obj)
+              throw new Error(
+                `Record with primary key "${primaryKeyVal}" not found in "${schemaName}".`,
+              );
+
+            const properties = schema.properties;
+
+            for (const key of Object.keys(properties)) {
+              if (key === primaryKey) continue; // Cannot update primary key field
+
+              let propDef = properties[key];
+              let propType =
+                typeof propDef === "string"
+                  ? propDef
+                  : propDef.type || "string";
+              let val = record[key];
+
+              // If optional property is omitted or sent as empty/null, set it to null
+              const baseType = propType.endsWith("?")
+                ? propType.slice(0, -1)
+                : propType;
+              const isOptional = propType.endsWith("?");
+
+              if (val === undefined || val === null || val === "") {
+                if (isOptional) {
+                  (obj as any)[key] = null;
+                }
+                continue;
+              }
+
+              if (
+                baseType === "objectId" ||
+                (typeof propDef === "object" &&
+                  propDef.objectType === "ObjectId")
+              ) {
+                try {
+                  (obj as any)[key] = new (
+                    realm.constructor as any
+                  ).BSON.ObjectId(val);
+                } catch {
+                  (obj as any)[key] = null;
+                }
+              } else if (baseType === "date") {
+                const d = new Date(val);
+                if (isNaN(d.getTime())) {
+                  throw new Error(
+                    `Field "${key}" must be a valid date string.`,
+                  );
+                }
+                (obj as any)[key] = d;
+              } else if (
+                baseType === "int" ||
+                baseType === "double" ||
+                baseType === "float" ||
+                baseType === "number"
+              ) {
+                const num = Number(val);
+                if (isNaN(num)) {
+                  throw new Error(`Field "${key}" must be a valid number.`);
+                }
+                (obj as any)[key] = num;
+              } else if (baseType === "bool" || baseType === "boolean") {
+                (obj as any)[key] = val === "true" || val === true;
+              } else if (
+                baseType === "list" ||
+                baseType.endsWith("[]") ||
+                (typeof propDef === "object" &&
+                  (propDef.type === "list" || propDef.type === "array"))
+              ) {
+                try {
+                  if (typeof val === "string") {
+                    if (
+                      val.trim().startsWith("[") &&
+                      val.trim().endsWith("]")
+                    ) {
+                      (obj as any)[key] = JSON.parse(val);
+                    } else {
+                      (obj as any)[key] = val
+                        .split(",")
+                        .map((s: string) => s.trim())
+                        .filter((s: string) => s.length > 0);
+                    }
+                  } else if (Array.isArray(val)) {
+                    (obj as any)[key] = val;
+                  } else {
+                    (obj as any)[key] = [];
+                  }
+                } catch {
+                  (obj as any)[key] = [];
+                }
+              } else {
+                (obj as any)[key] = val;
+              }
+            }
+          });
+          console.log(
+            `[RealmDebugger] Record updated successfully in schema ${schemaName}`,
+          );
+          ws?.send(
+            JSON.stringify({
+              event: "OPERATION_SUCCESS",
+              message: `Successfully updated record with key "${primaryKeyVal}" in "${schemaName}".`,
+            }),
+          );
+        } catch (err: any) {
+          console.error(`[RealmDebugger] Failed to update record:`, err);
+          ws?.send(
+            JSON.stringify({
+              event: "OPERATION_ERROR",
+              message: err.message || String(err),
+            }),
+          );
+        }
+      } else if (message.event === "ADD_SCHEMA_COLUMN") {
+        const { schemaName, columnName, columnType, optional } = message;
+        console.log(
+          `[RealmDebugger] Dynamic request to add column "${columnName}" (${columnType}) to schema "${schemaName}"`,
+        );
+
+        try {
+          const targetClass: any = realmConfig.schema?.find(
+            (s: any) => (s.schema ? s.schema.name : s.name) === schemaName,
+          );
+          if (!targetClass)
+            throw new Error(`Schema class for "${schemaName}" not found.`);
+
+          const targetSchema = targetClass.schema || targetClass;
+
+          // Add the property to targetSchema
+          if (!targetSchema.properties) {
+            targetSchema.properties = {};
+          }
+          targetSchema.properties[columnName] = optional
+            ? `${columnType}?`
+            : columnType;
+
+          // Increment schemaVersion
+          realmConfig.schemaVersion = (realmConfig.schemaVersion || 0) + 1;
+
+          // Close existing realm
+          realm.close();
+
+          // Reopen realm
+          const constructor = initialRealm.constructor as any;
+          const newRealm = constructor.open
+            ? await constructor.open(realmConfig)
+            : new constructor(realmConfig);
+
+          // Update references
+          realm = newRealm;
+
+          // Re-setup change listeners
+          registerListeners();
+
+          console.log(
+            `[RealmDebugger] Dynamic column "${columnName}" successfully added. Reopened Realm with schemaVersion ${realmConfig.schemaVersion}`,
+          );
+
+          ws?.send(
+            JSON.stringify({
+              event: "OPERATION_SUCCESS",
+              message: `Successfully added column "${columnName}" to schema "${schemaName}" and restarted Realm.`,
+            }),
+          );
+
+          // Broadcast the new schema state to all browsers
+          ws?.send(
+            JSON.stringify({
+              event: "REALM_CHANGED",
+              ...captureCurrentState(),
+            }),
+          );
+        } catch (err: any) {
+          console.error(`[RealmDebugger] Failed to add column:`, err);
+          ws?.send(
+            JSON.stringify({
+              event: "OPERATION_ERROR",
+              message: err.message || String(err),
+            }),
+          );
+        }
+      }
+    } catch (err) {
+      console.error("[RealmDebugger] Failed parsing incoming message:", err);
+    }
+  }
+
+  function handleSocketClose() {
+    console.log(
+      "[RealmDebugger] Connection closed. Retrying in 4 seconds...",
+    );
+    isConnected = false;
+    ws = null;
+    reconnectTimer = setTimeout(connect, 4000);
+  }
+
+  function handleSocketError(err: any) {
+    if (ws) {
+      console.log("[RealmDebugger] Connection error:", err);
+    }
+  }
+
+  function setupSocketHandlers(socket: WebSocket) {
+    socket.onmessage = handleSocketMessage;
+    socket.onclose = handleSocketClose;
+    socket.onerror = handleSocketError;
+  }
+
   // Connect to the WebSocket inspector server
   function connect() {
     if (reconnectTimer) clearTimeout(reconnectTimer);
 
-    console.log(
-      `[RealmDebugger] Connecting to inspector server at ${formattedUrl}...`,
-    );
-    ws = new WebSocket(formattedUrl);
+    // Auto-discover is used if the serverUrl/formattedUrl is the default one.
+    const isDefault =
+      serverUrl === "ws://localhost:5000" ||
+      serverUrl === "ws://localhost:3000" ||
+      formattedUrl === "ws://localhost:5000" ||
+      formattedUrl === "ws://localhost:3000";
 
-    ws.onopen = () => {
+    if (!isDefault) {
       console.log(
-        `[RealmDebugger] Connected to inspector server successfully.`,
+        `[RealmDebugger] Connecting to inspector server at ${formattedUrl}...`,
       );
-      isConnected = true;
+      ws = new WebSocket(formattedUrl);
+      setupSocketHandlers(ws);
 
-      // Send initial connect payload
-      const state = captureCurrentState();
-      ws?.send(
-        JSON.stringify({
-          event: "APP_CONNECT",
-          ...state,
-        }),
-      );
-    };
+      ws.onopen = () => {
+        console.log(
+          `[RealmDebugger] Connected to inspector server successfully.`,
+        );
+        isConnected = true;
 
-    ws.onmessage = async (event) => {
-      try {
-        const message = JSON.parse(event.data);
-        if (message.event === "FORCE_REFRESH") {
-          console.log(
-            "[RealmDebugger] Force refresh request received from dashboard.",
-          );
-          sendUpdate("REFRESH", "ForceRefresh");
-        } else if (message.event === "ADD_RECORD") {
-          const { schemaName, record } = message;
-          console.log(
-            `[RealmDebugger] Dynamic request to add record to schema "${schemaName}":`,
-            record,
-          );
+        // Send initial connect payload
+        const state = captureCurrentState();
+        ws?.send(
+          JSON.stringify({
+            event: "APP_CONNECT",
+            ...state,
+          }),
+        );
+      };
+      return;
+    }
 
-          try {
-            realm.write(() => {
-              const schemas: RealmSchema[] = realm.schema || [];
-              const schema = schemas.find((s: any) => s.name === schemaName);
-              if (!schema)
-                throw new Error(
-                  `Schema "${schemaName}" not found in database.`,
-                );
+    // Auto-discover across common fallback ports (5000 - 5005, 3000 - 3005)
+    const scanPorts = [5000, 5001, 5002, 5003, 5004, 5005, 3000, 3001, 3002, 3003, 3004, 3005];
+    const hosts = ["localhost", "10.0.2.2"];
+    let resolved = false;
+    const tempSockets: WebSocket[] = [];
 
-              const finalRecord: any = {};
-              const properties = schema.properties;
+    console.log(`[RealmDebugger] Auto-discovering inspector server...`);
 
-              for (const key of Object.keys(properties)) {
-                let propDef = properties[key];
-                let propType =
-                  typeof propDef === "string"
-                    ? propDef
-                    : propDef.type || "string";
-                let val = record[key];
+    hosts.forEach((host) => {
+      scanPorts.forEach((port) => {
+        if (resolved) return;
+        const url = `ws://${host}:${port}`;
+        const tempWs = new WebSocket(url);
+        tempSockets.push(tempWs);
 
-                if (val === undefined || val === null || val === "") {
-                  continue;
-                }
-
-                const baseType = propType.endsWith("?")
-                  ? propType.slice(0, -1)
-                  : propType;
-
-                if (
-                  baseType === "objectId" ||
-                  (typeof propDef === "object" &&
-                    propDef.objectType === "ObjectId") ||
-                  key === "_id"
-                ) {
-                  try {
-                    finalRecord[key] = new (
-                      realm.constructor as any
-                    ).BSON.ObjectId(val);
-                  } catch {
-                    finalRecord[key] = new (
-                      realm.constructor as any
-                    ).BSON.ObjectId();
-                  }
-                } else if (baseType === "date") {
-                  const d = new Date(val);
-                  if (isNaN(d.getTime())) {
-                    throw new Error(
-                      `Field "${key}" must be a valid date string.`,
-                    );
-                  }
-                  finalRecord[key] = d;
-                } else if (
-                  baseType === "int" ||
-                  baseType === "double" ||
-                  baseType === "float" ||
-                  baseType === "number"
-                ) {
-                  const num = Number(val);
-                  if (isNaN(num)) {
-                    throw new Error(`Field "${key}" must be a valid number.`);
-                  }
-                  finalRecord[key] = num;
-                } else if (baseType === "bool" || baseType === "boolean") {
-                  finalRecord[key] = val === "true" || val === true;
-                } else if (
-                  baseType === "list" ||
-                  baseType.endsWith("[]") ||
-                  (typeof propDef === "object" &&
-                    (propDef.type === "list" || propDef.type === "array"))
-                ) {
-                  try {
-                    if (typeof val === "string") {
-                      if (
-                        val.trim().startsWith("[") &&
-                        val.trim().endsWith("]")
-                      ) {
-                        finalRecord[key] = JSON.parse(val);
-                      } else {
-                        finalRecord[key] = val
-                          .split(",")
-                          .map((s: string) => s.trim())
-                          .filter((s: string) => s.length > 0);
-                      }
-                    } else if (Array.isArray(val)) {
-                      finalRecord[key] = val;
-                    } else {
-                      finalRecord[key] = [];
-                    }
-                  } catch {
-                    finalRecord[key] = [];
-                  }
-                } else {
-                  finalRecord[key] = val;
-                }
-              }
-
-              if (schema.primaryKey && !finalRecord[schema.primaryKey]) {
-                const pkProp = properties[schema.primaryKey];
-                const pkType =
-                  typeof pkProp === "string" ? pkProp : pkProp.type || "string";
-                if (pkType === "objectId" || schema.primaryKey === "_id") {
-                  finalRecord[schema.primaryKey] = new (
-                    realm.constructor as any
-                  ).BSON.ObjectId();
-                }
-              }
-
-              realm.create(schemaName, finalRecord);
-            });
-            console.log(
-              `[RealmDebugger] Record added successfully to schema ${schemaName}`,
-            );
-            ws?.send(
-              JSON.stringify({
-                event: "OPERATION_SUCCESS",
-                message: `Successfully added new record to "${schemaName}".`,
-              }),
-            );
-          } catch (err: any) {
-            console.error(`[RealmDebugger] Failed to add record:`, err);
-            ws?.send(
-              JSON.stringify({
-                event: "OPERATION_ERROR",
-                message: err.message || String(err),
-              }),
-            );
+        tempWs.onopen = () => {
+          if (resolved) {
+            tempWs.close();
+            return;
           }
-        } else if (message.event === "UPDATE_RECORD") {
-          const { schemaName, primaryKeyVal, record } = message;
+          resolved = true;
+          ws = tempWs;
+          isConnected = true;
           console.log(
-            `[RealmDebugger] Dynamic request to update record in schema "${schemaName}" with PK "${primaryKeyVal}":`,
-            record,
+            `[RealmDebugger] Auto-discovered server and connected successfully at ${url}`,
           );
 
-          try {
-            realm.write(() => {
-              const schemas: RealmSchema[] = realm.schema || [];
-              const schema = schemas.find((s: any) => s.name === schemaName);
-              if (!schema)
-                throw new Error(
-                  `Schema "${schemaName}" not found in database.`,
-                );
-
-              const primaryKey = schema.primaryKey;
-              if (!primaryKey)
-                throw new Error(
-                  `Schema "${schemaName}" does not have a primary key.`,
-                );
-
-              // Find the object
-              let pkParsed: any = primaryKeyVal;
-              const pkProp = schema.properties[primaryKey];
-              const pkType =
-                typeof pkProp === "string" ? pkProp : pkProp.type || "string";
-              if (pkType === "objectId" || primaryKey === "_id") {
-                pkParsed = new (realm.constructor as any).BSON.ObjectId(
-                  primaryKeyVal,
-                );
-              } else if (pkType === "int") {
-                pkParsed = Number(primaryKeyVal);
-              }
-
-              const obj = realm.objectForPrimaryKey(schemaName, pkParsed);
-              if (!obj)
-                throw new Error(
-                  `Record with primary key "${primaryKeyVal}" not found in "${schemaName}".`,
-                );
-
-              const properties = schema.properties;
-
-              for (const key of Object.keys(properties)) {
-                if (key === primaryKey) continue; // Cannot update primary key field
-
-                let propDef = properties[key];
-                let propType =
-                  typeof propDef === "string"
-                    ? propDef
-                    : propDef.type || "string";
-                let val = record[key];
-
-                // If optional property is omitted or sent as empty/null, set it to null
-                const baseType = propType.endsWith("?")
-                  ? propType.slice(0, -1)
-                  : propType;
-                const isOptional = propType.endsWith("?");
-
-                if (val === undefined || val === null || val === "") {
-                  if (isOptional) {
-                    (obj as any)[key] = null;
-                  }
-                  continue;
-                }
-
-                if (
-                  baseType === "objectId" ||
-                  (typeof propDef === "object" &&
-                    propDef.objectType === "ObjectId")
-                ) {
-                  try {
-                    (obj as any)[key] = new (
-                      realm.constructor as any
-                    ).BSON.ObjectId(val);
-                  } catch {
-                    (obj as any)[key] = null;
-                  }
-                } else if (baseType === "date") {
-                  const d = new Date(val);
-                  if (isNaN(d.getTime())) {
-                    throw new Error(
-                      `Field "${key}" must be a valid date string.`,
-                    );
-                  }
-                  (obj as any)[key] = d;
-                } else if (
-                  baseType === "int" ||
-                  baseType === "double" ||
-                  baseType === "float" ||
-                  baseType === "number"
-                ) {
-                  const num = Number(val);
-                  if (isNaN(num)) {
-                    throw new Error(`Field "${key}" must be a valid number.`);
-                  }
-                  (obj as any)[key] = num;
-                } else if (baseType === "bool" || baseType === "boolean") {
-                  (obj as any)[key] = val === "true" || val === true;
-                } else if (
-                  baseType === "list" ||
-                  baseType.endsWith("[]") ||
-                  (typeof propDef === "object" &&
-                    (propDef.type === "list" || propDef.type === "array"))
-                ) {
-                  try {
-                    if (typeof val === "string") {
-                      if (
-                        val.trim().startsWith("[") &&
-                        val.trim().endsWith("]")
-                      ) {
-                        (obj as any)[key] = JSON.parse(val);
-                      } else {
-                        (obj as any)[key] = val
-                          .split(",")
-                          .map((s: string) => s.trim())
-                          .filter((s: string) => s.length > 0);
-                      }
-                    } else if (Array.isArray(val)) {
-                      (obj as any)[key] = val;
-                    } else {
-                      (obj as any)[key] = [];
-                    }
-                  } catch {
-                    (obj as any)[key] = [];
-                  }
-                } else {
-                  (obj as any)[key] = val;
-                }
-              }
-            });
-            console.log(
-              `[RealmDebugger] Record updated successfully in schema ${schemaName}`,
-            );
-            ws?.send(
-              JSON.stringify({
-                event: "OPERATION_SUCCESS",
-                message: `Successfully updated record with key "${primaryKeyVal}" in "${schemaName}".`,
-              }),
-            );
-          } catch (err: any) {
-            console.error(`[RealmDebugger] Failed to update record:`, err);
-            ws?.send(
-              JSON.stringify({
-                event: "OPERATION_ERROR",
-                message: err.message || String(err),
-              }),
-            );
-          }
-        } else if (message.event === "ADD_SCHEMA_COLUMN") {
-          const { schemaName, columnName, columnType, optional } = message;
-          console.log(
-            `[RealmDebugger] Dynamic request to add column "${columnName}" (${columnType}) to schema "${schemaName}"`,
-          );
-
-          try {
-            const targetClass: any = realmConfig.schema?.find(
-              (s: any) => (s.schema ? s.schema.name : s.name) === schemaName,
-            );
-            if (!targetClass)
-              throw new Error(`Schema class for "${schemaName}" not found.`);
-
-            const targetSchema = targetClass.schema || targetClass;
-
-            // Add the property to targetSchema
-            if (!targetSchema.properties) {
-              targetSchema.properties = {};
+          // Close all other discovery sockets
+          tempSockets.forEach((s) => {
+            if (s !== tempWs) {
+              try {
+                s.close();
+              } catch (_) {}
             }
-            targetSchema.properties[columnName] = optional
-              ? `${columnType}?`
-              : columnType;
+          });
 
-            // Increment schemaVersion
-            realmConfig.schemaVersion = (realmConfig.schemaVersion || 0) + 1;
+          // Bind event listeners to the chosen socket
+          setupSocketHandlers(tempWs);
 
-            // Close existing realm
-            realm.close();
+          // Send initial connect payload
+          const state = captureCurrentState();
+          tempWs.send(
+            JSON.stringify({
+              event: "APP_CONNECT",
+              ...state,
+            }),
+          );
+        };
 
-            // Reopen realm
-            const constructor = initialRealm.constructor as any;
-            const newRealm = constructor.open
-              ? await constructor.open(realmConfig)
-              : new constructor(realmConfig);
+        tempWs.onerror = () => {
+          // Silent catch for scanning
+        };
+      });
+    });
 
-            // Update references
-            realm = newRealm;
-
-            // Re-setup change listeners
-            registerListeners();
-
-            console.log(
-              `[RealmDebugger] Dynamic column "${columnName}" successfully added. Reopened Realm with schemaVersion ${realmConfig.schemaVersion}`,
-            );
-
-            ws?.send(
-              JSON.stringify({
-                event: "OPERATION_SUCCESS",
-                message: `Successfully added column "${columnName}" to schema "${schemaName}" and restarted Realm.`,
-              }),
-            );
-
-            // Broadcast the new schema state to all browsers
-            ws?.send(
-              JSON.stringify({
-                event: "REALM_CHANGED",
-                ...captureCurrentState(),
-              }),
-            );
-          } catch (err: any) {
-            console.error(`[RealmDebugger] Failed to add column:`, err);
-            ws?.send(
-              JSON.stringify({
-                event: "OPERATION_ERROR",
-                message: err.message || String(err),
-              }),
-            );
-          }
-        }
-      } catch (err) {
-        console.error("[RealmDebugger] Failed parsing incoming message:", err);
+    // If no port connected in 4 seconds, retry discovery
+    reconnectTimer = setTimeout(() => {
+      if (!resolved) {
+        tempSockets.forEach((s) => {
+          try {
+            s.close();
+          } catch (_) {}
+        });
+        console.log(
+          `[RealmDebugger] Auto-discovery timed out. Retrying in 4 seconds...`,
+        );
+        connect();
       }
-    };
-
-    ws.onclose = () => {
-      console.log(
-        "[RealmDebugger] Connection closed. Retrying in 4 seconds...",
-      );
-      isConnected = false;
-      ws = null;
-      reconnectTimer = setTimeout(connect, 4000);
-    };
-
-    ws.onerror = (err) => {
-      console.log("[RealmDebugger] Connection error:", err);
-    };
+    }, 4000);
   }
 
   // Send an update event to the server

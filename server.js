@@ -440,11 +440,31 @@ server.on("upgrade", (req, socket, head) => {
   });
 });
 
-server.listen(PORT, () => {
+let currentPort = PORT;
+
+function startServer(port) {
+  server.listen(port);
+}
+
+server.on("listening", () => {
+  const boundPort = server.address().port;
+  process.env.PORT = boundPort.toString();
   console.log(
-    `\n🚀 Realm Live Debugger Server running at http://localhost:${PORT}`,
+    `\n🚀 Realm Live Debugger Server running at http://localhost:${boundPort}`,
   );
   console.log(
-    `📺 Open http://localhost:${PORT} in your browser to inspect database.\n`,
+    `📺 Open http://localhost:${boundPort} in your browser to inspect database.\n`,
   );
 });
+
+server.on("error", (err) => {
+  if (err.code === "EADDRINUSE") {
+    console.warn(`[Debugger] Port ${currentPort} is busy. Trying port ${currentPort + 1}...`);
+    currentPort++;
+    startServer(currentPort);
+  } else {
+    console.error("[Debugger] Server error:", err);
+  }
+});
+
+startServer(currentPort);
